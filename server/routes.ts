@@ -102,14 +102,14 @@ export async function registerRoutes(app: Express): Promise<Server> {
     try {
       const { email, password } = req.body;
       
-      const user = await storage.getUserByEmail(email);
+      const user = await storage.getUserByEmailOrUsername(email);
       if (!user || !user.password) {
-        return res.status(401).json({ message: "ایمیل یا رمز عبور اشتباه است" });
+        return res.status(401).json({ message: "نام کاربری/ایمیل یا رمز عبور اشتباه است" });
       }
 
       const isValidPassword = await bcrypt.compare(password, user.password);
       if (!isValidPassword) {
-        return res.status(401).json({ message: "ایمیل یا رمز عبور اشتباه است" });
+        return res.status(401).json({ message: "نام کاربری/ایمیل یا رمز عبور اشتباه است" });
       }
 
       const token = jwt.sign({ userId: user.id }, JWT_SECRET, { expiresIn: "7d" });
@@ -134,6 +134,38 @@ export async function registerRoutes(app: Express): Promise<Server> {
       res.json(users.map(user => ({ ...user, password: undefined })));
     } catch (error) {
       res.status(500).json({ message: "خطا در دریافت کاربران" });
+    }
+  });
+
+  app.post("/api/users", authenticateToken, requireAdmin, async (req, res) => {
+    try {
+      const validatedData = insertUserSchema.parse(req.body);
+      
+      // Check if user already exists
+      const existingEmailUser = await storage.getUserByEmail(validatedData.email);
+      if (existingEmailUser) {
+        return res.status(400).json({ message: "کاربری با این ایمیل قبلاً ثبت نام کرده است" });
+      }
+
+      const existingUsernameUser = await storage.getUserByUsername(validatedData.username!);
+      if (existingUsernameUser) {
+        return res.status(400).json({ message: "کاربری با این نام کاربری قبلاً ثبت نام کرده است" });
+      }
+
+      // Hash password
+      const hashedPassword = await bcrypt.hash(validatedData.password!, 10);
+      
+      const user = await storage.createUser({
+        ...validatedData,
+        password: hashedPassword,
+      });
+
+      res.json({ ...user, password: undefined });
+    } catch (error) {
+      if (error instanceof z.ZodError) {
+        return res.status(400).json({ message: "داده های ورودی نامعتبر است", errors: error.errors });
+      }
+      res.status(500).json({ message: "خطا در ایجاد کاربر" });
     }
   });
 

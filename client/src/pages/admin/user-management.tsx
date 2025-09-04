@@ -19,6 +19,7 @@ export default function UserManagement() {
   const [roleFilter, setRoleFilter] = useState("all");
   const [editingUser, setEditingUser] = useState<UserType | null>(null);
   const [isEditDialogOpen, setIsEditDialogOpen] = useState(false);
+  const [isCreateDialogOpen, setIsCreateDialogOpen] = useState(false);
   const { toast } = useToast();
   const queryClient = useQueryClient();
 
@@ -28,6 +29,32 @@ export default function UserManagement() {
       const response = await createAuthenticatedRequest("/api/users");
       if (!response.ok) throw new Error("خطا در دریافت کاربران");
       return response.json();
+    },
+  });
+
+  const createUserMutation = useMutation({
+    mutationFn: async (data: Partial<UserType>) => {
+      const response = await createAuthenticatedRequest("/api/users", {
+        method: "POST",
+        body: JSON.stringify(data),
+      });
+      if (!response.ok) throw new Error("خطا در ایجاد کاربر");
+      return response.json();
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["/api/users"] });
+      setIsCreateDialogOpen(false);
+      toast({
+        title: "موفقیت",
+        description: "کاربر با موفقیت ایجاد شد",
+      });
+    },
+    onError: () => {
+      toast({
+        title: "خطا",
+        description: "خطا در ایجاد کاربر",
+        variant: "destructive",
+      });
     },
   });
 
@@ -85,7 +112,8 @@ export default function UserManagement() {
   const filteredUsers = users.filter(user => {
     const matchesSearch = user.firstName.toLowerCase().includes(search.toLowerCase()) ||
                          user.lastName.toLowerCase().includes(search.toLowerCase()) ||
-                         user.email.toLowerCase().includes(search.toLowerCase());
+                         user.email.toLowerCase().includes(search.toLowerCase()) ||
+                         (user.username && user.username.toLowerCase().includes(search.toLowerCase()));
     const matchesRole = roleFilter === "all" || user.role === roleFilter;
     return matchesSearch && matchesRole;
   });
@@ -106,6 +134,23 @@ export default function UserManagement() {
   const handleEditUser = (user: UserType) => {
     setEditingUser(user);
     setIsEditDialogOpen(true);
+  };
+
+  const handleCreateUser = (e: React.FormEvent) => {
+    e.preventDefault();
+
+    const formData = new FormData(e.target as HTMLFormElement);
+    const data = {
+      username: formData.get("username") as string,
+      firstName: formData.get("firstName") as string,
+      lastName: formData.get("lastName") as string,
+      email: formData.get("email") as string,
+      phone: formData.get("phone") as string,
+      password: formData.get("password") as string,
+      role: formData.get("role") as string,
+    };
+
+    createUserMutation.mutate(data);
   };
 
   const handleUpdateUser = (e: React.FormEvent) => {
@@ -136,6 +181,13 @@ export default function UserManagement() {
             <h2 className="text-2xl font-bold text-foreground">مدیریت کاربران</h2>
             <p className="text-muted-foreground">مشاهده و مدیریت تمام کاربران سیستم</p>
           </div>
+          <Button 
+            onClick={() => setIsCreateDialogOpen(true)}
+            data-testid="button-create-user"
+          >
+            <Plus className="h-4 w-4 ml-2" />
+            اضافه کردن کاربر جدید
+          </Button>
         </div>
 
         {/* Search and Filters */}
@@ -177,6 +229,7 @@ export default function UserManagement() {
                 <TableHeader>
                   <TableRow className="bg-muted">
                     <TableHead className="text-right">تصویر</TableHead>
+                    <TableHead className="text-right">نام کاربری</TableHead>
                     <TableHead className="text-right">نام</TableHead>
                     <TableHead className="text-right">ایمیل</TableHead>
                     <TableHead className="text-right">شماره تلفن</TableHead>
@@ -195,6 +248,9 @@ export default function UserManagement() {
                             <User className="h-4 w-4" />
                           </AvatarFallback>
                         </Avatar>
+                      </TableCell>
+                      <TableCell className="font-medium" data-testid={`text-user-username-${user.id}`}>
+                        {user.username || '-'}
                       </TableCell>
                       <TableCell className="font-medium" data-testid={`text-user-name-${user.id}`}>
                         {user.firstName} {user.lastName}
@@ -239,6 +295,105 @@ export default function UserManagement() {
             </div>
           )}
         </div>
+
+        {/* Create User Dialog */}
+        <Dialog open={isCreateDialogOpen} onOpenChange={setIsCreateDialogOpen}>
+          <DialogContent data-testid="dialog-create-user">
+            <DialogHeader>
+              <DialogTitle>ایجاد کاربر جدید</DialogTitle>
+            </DialogHeader>
+            <form onSubmit={handleCreateUser} className="space-y-4">
+              <div className="grid grid-cols-2 gap-4">
+                <div>
+                  <Label htmlFor="firstName">نام</Label>
+                  <Input
+                    id="firstName"
+                    name="firstName"
+                    required
+                    data-testid="input-create-firstName"
+                  />
+                </div>
+                <div>
+                  <Label htmlFor="lastName">نام خانوادگی</Label>
+                  <Input
+                    id="lastName"
+                    name="lastName"
+                    required
+                    data-testid="input-create-lastName"
+                  />
+                </div>
+              </div>
+              <div>
+                <Label htmlFor="username">نام کاربری</Label>
+                <Input
+                  id="username"
+                  name="username"
+                  required
+                  data-testid="input-create-username"
+                />
+              </div>
+              <div>
+                <Label htmlFor="email">ایمیل</Label>
+                <Input
+                  id="email"
+                  name="email"
+                  type="email"
+                  required
+                  data-testid="input-create-email"
+                />
+              </div>
+              <div>
+                <Label htmlFor="phone">شماره تلفن</Label>
+                <Input
+                  id="phone"
+                  name="phone"
+                  required
+                  data-testid="input-create-phone"
+                />
+              </div>
+              <div>
+                <Label htmlFor="password">رمز عبور</Label>
+                <Input
+                  id="password"
+                  name="password"
+                  type="password"
+                  required
+                  data-testid="input-create-password"
+                />
+              </div>
+              <div>
+                <Label htmlFor="role">نقش</Label>
+                <Select name="role" defaultValue="user_level_1">
+                  <SelectTrigger data-testid="select-create-role">
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="admin">مدیر</SelectItem>
+                    <SelectItem value="user_level_1">کاربر سطح ۱</SelectItem>
+                    <SelectItem value="user_level_2">کاربر سطح ۲</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+              <div className="flex justify-end space-x-2 space-x-reverse">
+                <Button
+                  type="button"
+                  variant="outline"
+                  onClick={() => setIsCreateDialogOpen(false)}
+                  data-testid="button-cancel-create"
+                >
+                  لغو
+                </Button>
+                <Button
+                  type="submit"
+                  disabled={createUserMutation.isPending}
+                  data-testid="button-create-user-submit"
+                >
+                  {createUserMutation.isPending ? "در حال ایجاد..." : "ایجاد کاربر"}
+                </Button>
+              </div>
+            </form>
+          </DialogContent>
+        </Dialog>
 
         {/* Edit User Dialog */}
         <Dialog open={isEditDialogOpen} onOpenChange={setIsEditDialogOpen}>

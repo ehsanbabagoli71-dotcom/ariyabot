@@ -6,6 +6,8 @@ export interface IStorage {
   // Users
   getUser(id: string): Promise<User | undefined>;
   getUserByEmail(email: string): Promise<User | undefined>;
+  getUserByUsername(username: string): Promise<User | undefined>;
+  getUserByEmailOrUsername(emailOrUsername: string): Promise<User | undefined>;
   getUserByGoogleId(googleId: string): Promise<User | undefined>;
   createUser(user: InsertUser): Promise<User>;
   updateUser(id: string, user: Partial<User>): Promise<User | undefined>;
@@ -62,9 +64,10 @@ export class MemStorage implements IStorage {
     const hashedPassword = await bcrypt.hash("232111", 10);
     const adminUser: User = {
       id: randomUUID(),
+      username: "ehsan",
       firstName: "احسان",
       lastName: "مدیر",
-      email: "ehsan",
+      email: "ehsan@admin.com",
       phone: "09123456789",
       password: hashedPassword,
       googleId: null,
@@ -82,6 +85,20 @@ export class MemStorage implements IStorage {
 
   async getUserByEmail(email: string): Promise<User | undefined> {
     return Array.from(this.users.values()).find(user => user.email === email);
+  }
+
+  async getUserByUsername(username: string): Promise<User | undefined> {
+    return Array.from(this.users.values()).find(user => user.username === username);
+  }
+
+  async getUserByEmailOrUsername(emailOrUsername: string): Promise<User | undefined> {
+    // Try email first
+    const userByEmail = await this.getUserByEmail(emailOrUsername);
+    if (userByEmail) return userByEmail;
+    
+    // Try username if email doesn't work
+    const userByUsername = await this.getUserByUsername(emailOrUsername);
+    return userByUsername;
   }
 
   async getUserByGoogleId(googleId: string): Promise<User | undefined> {
@@ -259,4 +276,6 @@ export class MemStorage implements IStorage {
   }
 }
 
-export const storage = new MemStorage();
+import { DbStorage } from "./db-storage";
+
+export const storage = process.env.NODE_ENV === "test" ? new MemStorage() : new DbStorage();

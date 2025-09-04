@@ -10,7 +10,7 @@ import { useAuth } from "@/hooks/use-auth";
 import { useToast } from "@/hooks/use-toast";
 
 export default function Login() {
-  const [email, setEmail] = useState("");
+  const [emailOrUsername, setEmailOrUsername] = useState("");
   const [password, setPassword] = useState("");
   const [rememberMe, setRememberMe] = useState(false);
   const { login, isLoginLoading, loginError } = useAuth();
@@ -19,7 +19,7 @@ export default function Login() {
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
     
-    if (!email || !password) {
+    if (!emailOrUsername || !password) {
       toast({
         title: "خطا",
         description: "لطفاً تمام فیلدها را پر کنید",
@@ -28,13 +28,13 @@ export default function Login() {
       return;
     }
 
-    login({ email, password });
+    login({ email: emailOrUsername, password });
   };
 
   if (loginError) {
     toast({
       title: "خطا در ورود",
-      description: "ایمیل یا رمز عبور اشتباه است",
+      description: "نام کاربری/ایمیل یا رمز عبور اشتباه است",
       variant: "destructive",
     });
   }
@@ -52,15 +52,15 @@ export default function Login() {
         <CardContent>
           <form onSubmit={handleSubmit} className="space-y-6" data-testid="form-login">
             <div>
-              <Label htmlFor="email">ایمیل</Label>
+              <Label htmlFor="emailOrUsername">نام کاربری یا ایمیل</Label>
               <Input
-                id="email"
-                type="email"
-                value={email}
-                onChange={(e) => setEmail(e.target.value)}
-                placeholder="ایمیل خود را وارد کنید"
+                id="emailOrUsername"
+                type="text"
+                value={emailOrUsername}
+                onChange={(e) => setEmailOrUsername(e.target.value)}
+                placeholder="نام کاربری یا ایمیل خود را وارد کنید"
                 required
-                data-testid="input-email"
+                data-testid="input-email-or-username"
               />
             </div>
             
