@@ -36,7 +36,11 @@ export default function Reports() {
       const response = await createAuthenticatedRequest("/api/messages/sent");
       if (response.ok) {
         const data = await response.json();
-        setSentMessages(data);
+        // Sort messages by timestamp descending (newest first) to ensure consistency
+        const sortedMessages = data.sort((a: any, b: any) => 
+          new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime()
+        );
+        setSentMessages(sortedMessages);
       }
     } catch (error) {
       console.error("خطا در دریافت پیام‌های ارسالی:", error);
@@ -51,7 +55,11 @@ export default function Reports() {
       );
       if (response.ok) {
         const data: PaginatedMessages = await response.json();
-        setReceivedMessages(data.messages);
+        // Sort messages by timestamp descending (newest first) to ensure consistency
+        const sortedMessages = data.messages.sort((a, b) => 
+          new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime()
+        );
+        setReceivedMessages(sortedMessages);
         setTotalPages(data.totalPages);
         setTotalMessages(data.total);
         setCurrentPage(page);

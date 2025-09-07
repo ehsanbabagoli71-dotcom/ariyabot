@@ -203,7 +203,9 @@ export class DbStorage implements IStorage {
 
   // Messages
   async getSentMessagesByUser(userId: string): Promise<SentMessage[]> {
-    return await db.select().from(sentMessages).where(eq(sentMessages.userId, userId));
+    return await db.select().from(sentMessages)
+      .where(eq(sentMessages.userId, userId))
+      .orderBy(desc(sentMessages.timestamp), desc(sentMessages.id));
   }
 
   async createSentMessage(insertMessage: InsertSentMessage): Promise<SentMessage> {
@@ -212,7 +214,9 @@ export class DbStorage implements IStorage {
   }
 
   async getReceivedMessagesByUser(userId: string): Promise<ReceivedMessage[]> {
-    return await db.select().from(receivedMessages).where(eq(receivedMessages.userId, userId));
+    return await db.select().from(receivedMessages)
+      .where(eq(receivedMessages.userId, userId))
+      .orderBy(desc(receivedMessages.timestamp), desc(receivedMessages.id));
   }
 
   async getReceivedMessagesByUserPaginated(userId: string, page: number, limit: number): Promise<{ messages: ReceivedMessage[], total: number, totalPages: number }> {
@@ -225,11 +229,11 @@ export class DbStorage implements IStorage {
     const total = countResult[0].count;
     const totalPages = Math.ceil(total / limit);
     
-    // Get paginated messages ordered by timestamp desc
+    // Get paginated messages ordered by timestamp desc (newest first)
     const messages = await db.select()
       .from(receivedMessages)
       .where(eq(receivedMessages.userId, userId))
-      .orderBy(desc(receivedMessages.timestamp))
+      .orderBy(desc(receivedMessages.timestamp), desc(receivedMessages.id))
       .limit(limit)
       .offset(offset);
     

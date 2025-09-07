@@ -54,18 +54,33 @@ class WhatsAppMessageService {
       const settings = await storage.getWhatsappSettings();
       
       if (!settings || !settings.token || !settings.isEnabled) {
-        console.log("⚠️ تنظیمات واتس‌اپ فعال نیست یا توکن موجود نیست");
-        if (!settings) console.log("   - تنظیمات موجود نیست");
-        if (settings && !settings.token) console.log("   - توکن موجود نیست");
-        if (settings && !settings.isEnabled) console.log("   - سرویس فعال نیست");
+        // console.log("⚠️ تنظیمات واتس‌اپ فعال نیست یا توکن موجود نیست");
+        // if (!settings) console.log("   - تنظیمات موجود نیست");
+        // if (settings && !settings.token) console.log("   - توکن موجود نیست");
+        // if (settings && !settings.isEnabled) console.log("   - سرویس فعال نیست");
         return;
       }
 
-      // دریافت پیام‌ها از WhatsiPlus API
-      const response = await fetch(`https://api.whatsiplus.com/receivedMessages/${settings.token}?page=1&phonenumber=${settings.phoneNumber || ''}`);
+      console.log(`🔄 چک کردن پیام‌های جدید از ${settings.phoneNumber || 'unknown'}...`);
+
+      // دریافت پیام‌ها از WhatsiPlus API با timeout بهبود یافته
+      const controller = new AbortController();
+      const timeoutId = setTimeout(() => controller.abort(), 10000); // 10 second timeout
+      
+      const response = await fetch(`https://api.whatsiplus.com/receivedMessages/${settings.token}?page=1&phonenumber=${settings.phoneNumber || ''}`, {
+        method: 'GET',
+        signal: controller.signal,
+        headers: {
+          'User-Agent': 'WhatsApp-Service/1.0',
+          'Accept': 'application/json',
+          'Cache-Control': 'no-cache'
+        }
+      });
+      
+      clearTimeout(timeoutId);
       
       if (!response.ok) {
-        console.error("❌ خطا در دریافت پیام‌ها از WhatsiPlus:", response.statusText);
+        console.error("❌ خطا در دریافت پیام‌ها از WhatsiPlus:", response.status, response.statusText);
         return;
       }
 
@@ -113,8 +128,12 @@ class WhatsAppMessageService {
         this.lastFetchTime = new Date();
       }
 
-    } catch (error) {
-      console.error("❌ خطا در دریافت پیام‌های واتس‌اپ:", error);
+    } catch (error: any) {
+      if (error.name === 'AbortError') {
+        console.error("⏱️ Timeout: درخواست پیام‌ها بیش از حد انتظار طول کشید");
+      } else {
+        console.error("❌ خطا در دریافت پیام‌های واتس‌اپ:", error.message || error);
+      }
     }
   }
 

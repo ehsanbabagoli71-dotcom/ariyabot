@@ -14,7 +14,6 @@ import type { WhatsappSettings } from "@shared/schema";
 export default function WhatsappSettings() {
   const [formData, setFormData] = useState({
     token: "",
-    phoneNumber: "",
     isEnabled: false,
     notifications: [] as string[],
   });
@@ -59,7 +58,6 @@ export default function WhatsappSettings() {
     if (settings) {
       setFormData({
         token: settings.token || "",
-        phoneNumber: settings.phoneNumber || "",
         isEnabled: settings.isEnabled,
         notifications: settings.notifications || [],
       });
@@ -143,17 +141,6 @@ export default function WhatsappSettings() {
                 </p>
               </div>
 
-              <div>
-                <Label htmlFor="phoneNumber">شماره واتس‌اپ بیزینس</Label>
-                <Input
-                  id="phoneNumber"
-                  type="tel"
-                  value={formData.phoneNumber}
-                  onChange={(e) => setFormData({ ...formData, phoneNumber: e.target.value })}
-                  placeholder="+989123456789"
-                  data-testid="input-whatsapp-phone"
-                />
-              </div>
 
               <div className="flex items-center space-x-3 space-x-reverse">
                 <Checkbox
