@@ -17,7 +17,8 @@ import {
   MessageSquare,
   Settings,
   ChevronDown,
-  LogOut
+  LogOut,
+  BarChart3
 } from "lucide-react";
 import { useAuth } from "@/hooks/use-auth";
 
@@ -46,7 +47,9 @@ export function Sidebar() {
   ];
 
   const whatsappItems = [
-    { path: "/whatsapp-settings", label: "تنظیمات واتس‌اپ", icon: Settings, adminOnly: true },
+    { path: "/whatsapp-settings", label: "تنظیمات واتس‌اپ", icon: Settings, adminOnly: false },
+    { path: "/send-message", label: "ارسال پیام", icon: Send, adminOnly: false },
+    { path: "/reports", label: "گزارش‌ها", icon: BarChart3, adminOnly: false },
   ];
 
   return (
@@ -161,7 +164,7 @@ export function Sidebar() {
               </CollapsibleTrigger>
               <CollapsibleContent className="mr-6 space-y-1">
                 {whatsappItems.map((item) => (
-                  (!item.adminOnly || user?.role === "admin") && (
+                  (!item.adminOnly || user?.role === "admin" || user?.role === "user_level_1") && (
                     <Link key={item.path} href={item.path}>
                       <Button
                         variant={isActive(item.path) ? "default" : "ghost"}

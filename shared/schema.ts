@@ -62,6 +62,26 @@ export const whatsappSettings = pgTable("whatsapp_settings", {
   updatedAt: timestamp("updated_at").defaultNow(),
 });
 
+export const sentMessages = pgTable("sent_messages", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  userId: varchar("user_id").notNull().references(() => users.id),
+  recipient: text("recipient").notNull(),
+  message: text("message").notNull(),
+  status: text("status").notNull().default("sent"), // sent, delivered, failed
+  timestamp: timestamp("timestamp").defaultNow(),
+});
+
+export const receivedMessages = pgTable("received_messages", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  userId: varchar("user_id").notNull().references(() => users.id),
+  whatsiPlusId: text("whatsiplus_id").unique(), // شناسه اصلی از WhatsiPlus
+  sender: text("sender").notNull(),
+  message: text("message").notNull(),
+  status: text("status").notNull().default("خوانده نشده"), // خوانده نشده, خوانده شده
+  originalDate: text("original_date"), // تاریخ اصلی از WhatsiPlus
+  timestamp: timestamp("timestamp").defaultNow(),
+});
+
 // Insert schemas
 export const insertUserSchema = createInsertSchema(users).omit({
   id: true,
@@ -91,6 +111,16 @@ export const insertWhatsappSettingsSchema = createInsertSchema(whatsappSettings)
   updatedAt: true,
 });
 
+export const insertSentMessageSchema = createInsertSchema(sentMessages).omit({
+  id: true,
+  timestamp: true,
+});
+
+export const insertReceivedMessageSchema = createInsertSchema(receivedMessages).omit({
+  id: true,
+  timestamp: true,
+});
+
 // Types
 export type User = typeof users.$inferSelect;
 export type InsertUser = z.infer<typeof insertUserSchema>;
@@ -106,3 +136,9 @@ export type InsertProduct = z.infer<typeof insertProductSchema>;
 
 export type WhatsappSettings = typeof whatsappSettings.$inferSelect;
 export type InsertWhatsappSettings = z.infer<typeof insertWhatsappSettingsSchema>;
+
+export type SentMessage = typeof sentMessages.$inferSelect;
+export type InsertSentMessage = z.infer<typeof insertSentMessageSchema>;
+
+export type ReceivedMessage = typeof receivedMessages.$inferSelect;
+export type InsertReceivedMessage = z.infer<typeof insertReceivedMessageSchema>;

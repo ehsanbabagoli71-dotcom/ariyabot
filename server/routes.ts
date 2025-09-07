@@ -6,7 +6,7 @@ import jwt from "jsonwebtoken";
 import multer from "multer";
 import path from "path";
 import { fileURLToPath } from "url";
-import { insertUserSchema, insertTicketSchema, insertSubscriptionSchema, insertProductSchema, insertWhatsappSettingsSchema, type User } from "@shared/schema";
+import { insertUserSchema, insertTicketSchema, insertSubscriptionSchema, insertProductSchema, insertWhatsappSettingsSchema, insertSentMessageSchema, insertReceivedMessageSchema, type User } from "@shared/schema";
 import { z } from "zod";
 
 const __filename = fileURLToPath(import.meta.url);
@@ -59,6 +59,14 @@ const authenticateToken = async (req: AuthRequest, res: Response, next: NextFunc
 const requireAdmin = (req: AuthRequest, res: Response, next: NextFunction) => {
   if (req.user?.role !== "admin") {
     return res.status(403).json({ message: "دسترسی مدیر مورد نیاز است" });
+  }
+  next();
+};
+
+// Admin or Level 1 user middleware for WhatsApp access
+const requireAdminOrLevel1 = (req: AuthRequest, res: Response, next: NextFunction) => {
+  if (req.user?.role !== "admin" && req.user?.role !== "user_level_1") {
+    return res.status(403).json({ message: "دسترسی مدیر یا کاربر سطح ۱ مورد نیاز است" });
   }
   next();
 };
@@ -423,8 +431,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
-  // WhatsApp settings routes (Admin only)
-  app.get("/api/whatsapp-settings", authenticateToken, requireAdmin, async (req, res) => {
+  // WhatsApp settings routes (Admin and Level 1 users)
+  app.get("/api/whatsapp-settings", authenticateToken, requireAdminOrLevel1, async (req, res) => {
     try {
       const settings = await storage.getWhatsappSettings();
       res.json(settings || {});
@@ -433,7 +441,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
-  app.put("/api/whatsapp-settings", authenticateToken, requireAdmin, async (req, res) => {
+  app.put("/api/whatsapp-settings", authenticateToken, requireAdminOrLevel1, async (req, res) => {
     try {
       const validatedData = insertWhatsappSettingsSchema.parse(req.body);
       const settings = await storage.updateWhatsappSettings(validatedData);
@@ -443,6 +451,77 @@ export async function registerRoutes(app: Express): Promise<Server> {
         return res.status(400).json({ message: "داده های ورودی نامعتبر است", errors: error.errors });
       }
       res.status(500).json({ message: "خطا در بروزرسانی تنظیمات واتس اپ" });
+    }
+  });
+
+  // Message routes (Admin and Level 1 users)
+  app.get("/api/messages/sent", authenticateToken, requireAdminOrLevel1, async (req: AuthRequest, res) => {
+    try {
+      const messages = await storage.getSentMessagesByUser(req.user!.id);
+      res.json(messages);
+    } catch (error) {
+      res.status(500).json({ message: "خطا در دریافت پیام‌های ارسالی" });
+    }
+  });
+
+  app.get("/api/messages/received", authenticateToken, requireAdminOrLevel1, async (req: AuthRequest, res) => {
+    try {
+      const page = parseInt(req.query.page as string) || 1;
+      const limit = parseInt(req.query.limit as string) || 7; // پیش‌فرض 7 پیام در هر صفحه
+      
+      const result = await storage.getReceivedMessagesByUserPaginated(req.user!.id, page, limit);
+      res.json(result);
+    } catch (error) {
+      res.status(500).json({ message: "خطا در دریافت پیام‌های دریافتی" });
+    }
+  });
+
+  app.post("/api/messages/sent", authenticateToken, requireAdminOrLevel1, async (req: AuthRequest, res) => {
+    try {
+      const validatedData = insertSentMessageSchema.parse({
+        ...req.body,
+        userId: req.user!.id,
+      });
+      
+      const message = await storage.createSentMessage(validatedData);
+      res.json(message);
+    } catch (error) {
+      if (error instanceof z.ZodError) {
+        return res.status(400).json({ message: "داده های ورودی نامعتبر است", errors: error.errors });
+      }
+      res.status(500).json({ message: "خطا در ثبت پیام ارسالی" });
+    }
+  });
+
+  app.post("/api/messages/received", authenticateToken, requireAdminOrLevel1, async (req: AuthRequest, res) => {
+    try {
+      const validatedData = insertReceivedMessageSchema.parse({
+        ...req.body,
+        userId: req.user!.id,
+      });
+      
+      const message = await storage.createReceivedMessage(validatedData);
+      res.json(message);
+    } catch (error) {
+      if (error instanceof z.ZodError) {
+        return res.status(400).json({ message: "داده های ورودی نامعتبر است", errors: error.errors });
+      }
+      res.status(500).json({ message: "خطا در ثبت پیام دریافتی" });
+    }
+  });
+
+  app.put("/api/messages/received/:id/read", authenticateToken, requireAdminOrLevel1, async (req: AuthRequest, res) => {
+    try {
+      const { id } = req.params;
+      const message = await storage.updateReceivedMessageStatus(id, "خوانده شده");
+      
+      if (!message) {
+        return res.status(404).json({ message: "پیام یافت نشد" });
+      }
+
+      res.json(message);
+    } catch (error) {
+      res.status(500).json({ message: "خطا در بروزرسانی وضعیت پیام" });
     }
   });
 

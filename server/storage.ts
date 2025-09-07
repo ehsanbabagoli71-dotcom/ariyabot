@@ -1,4 +1,4 @@
-import { type User, type InsertUser, type Ticket, type InsertTicket, type Subscription, type InsertSubscription, type Product, type InsertProduct, type WhatsappSettings, type InsertWhatsappSettings } from "@shared/schema";
+import { type User, type InsertUser, type Ticket, type InsertTicket, type Subscription, type InsertSubscription, type Product, type InsertProduct, type WhatsappSettings, type InsertWhatsappSettings, type SentMessage, type InsertSentMessage, type ReceivedMessage, type InsertReceivedMessage } from "@shared/schema";
 import { randomUUID } from "crypto";
 import bcrypt from "bcryptjs";
 
@@ -40,6 +40,15 @@ export interface IStorage {
   // WhatsApp Settings
   getWhatsappSettings(): Promise<WhatsappSettings | undefined>;
   updateWhatsappSettings(settings: InsertWhatsappSettings): Promise<WhatsappSettings>;
+  
+  // Messages
+  getSentMessagesByUser(userId: string): Promise<SentMessage[]>;
+  createSentMessage(message: InsertSentMessage): Promise<SentMessage>;
+  getReceivedMessagesByUser(userId: string): Promise<ReceivedMessage[]>;
+  getReceivedMessagesByUserPaginated(userId: string, page: number, limit: number): Promise<{ messages: ReceivedMessage[], total: number, totalPages: number }>;
+  getReceivedMessageByWhatsiPlusId(whatsiPlusId: string): Promise<ReceivedMessage | undefined>;
+  createReceivedMessage(message: InsertReceivedMessage): Promise<ReceivedMessage>;
+  updateReceivedMessageStatus(id: string, status: string): Promise<ReceivedMessage | undefined>;
 }
 
 export class MemStorage implements IStorage {
@@ -48,6 +57,8 @@ export class MemStorage implements IStorage {
   private subscriptions: Map<string, Subscription>;
   private products: Map<string, Product>;
   private whatsappSettings: WhatsappSettings | undefined;
+  private sentMessages: Map<string, SentMessage>;
+  private receivedMessages: Map<string, ReceivedMessage>;
 
   constructor() {
     this.users = new Map();
@@ -55,6 +66,8 @@ export class MemStorage implements IStorage {
     this.subscriptions = new Map();
     this.products = new Map();
     this.whatsappSettings = undefined;
+    this.sentMessages = new Map();
+    this.receivedMessages = new Map();
     
     // Create default admin user
     this.initializeAdminUser();
@@ -273,6 +286,67 @@ export class MemStorage implements IStorage {
     };
     this.whatsappSettings = whatsappSettings;
     return whatsappSettings;
+  }
+
+  // Messages
+  async getSentMessagesByUser(userId: string): Promise<SentMessage[]> {
+    return Array.from(this.sentMessages.values()).filter(message => message.userId === userId);
+  }
+
+  async createSentMessage(insertMessage: InsertSentMessage): Promise<SentMessage> {
+    const id = randomUUID();
+    const message: SentMessage = {
+      ...insertMessage,
+      id,
+      status: insertMessage.status || "sent",
+      timestamp: new Date(),
+    };
+    this.sentMessages.set(id, message);
+    return message;
+  }
+
+  async getReceivedMessagesByUser(userId: string): Promise<ReceivedMessage[]> {
+    return Array.from(this.receivedMessages.values()).filter(message => message.userId === userId);
+  }
+
+  async getReceivedMessagesByUserPaginated(userId: string, page: number, limit: number): Promise<{ messages: ReceivedMessage[], total: number, totalPages: number }> {
+    const allMessages = Array.from(this.receivedMessages.values())
+      .filter(message => message.userId === userId)
+      .sort((a, b) => (b.timestamp?.getTime() || 0) - (a.timestamp?.getTime() || 0));
+    
+    const total = allMessages.length;
+    const totalPages = Math.ceil(total / limit);
+    const offset = (page - 1) * limit;
+    const messages = allMessages.slice(offset, offset + limit);
+    
+    return { messages, total, totalPages };
+  }
+
+  async getReceivedMessageByWhatsiPlusId(whatsiPlusId: string): Promise<ReceivedMessage | undefined> {
+    return Array.from(this.receivedMessages.values()).find(message => message.whatsiPlusId === whatsiPlusId);
+  }
+
+  async createReceivedMessage(insertMessage: InsertReceivedMessage): Promise<ReceivedMessage> {
+    const id = randomUUID();
+    const message: ReceivedMessage = {
+      ...insertMessage,
+      id,
+      status: insertMessage.status || "خوانده نشده",
+      whatsiPlusId: insertMessage.whatsiPlusId || null,
+      originalDate: insertMessage.originalDate || null,
+      timestamp: new Date(),
+    };
+    this.receivedMessages.set(id, message);
+    return message;
+  }
+
+  async updateReceivedMessageStatus(id: string, status: string): Promise<ReceivedMessage | undefined> {
+    const message = this.receivedMessages.get(id);
+    if (!message) return undefined;
+    
+    const updatedMessage = { ...message, status };
+    this.receivedMessages.set(id, updatedMessage);
+    return updatedMessage;
   }
 }
 

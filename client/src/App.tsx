@@ -13,8 +13,10 @@ import Subscriptions from "@/pages/admin/subscriptions";
 import WhatsappSettings from "@/pages/admin/whatsapp-settings";
 import Profile from "@/pages/user/profile";
 import SendTicket from "@/pages/user/send-ticket";
+import SendMessage from "@/pages/user/send-message";
 import AddProduct from "@/pages/user/add-product";
 import ProductList from "@/pages/user/product-list";
+import Reports from "@/pages/user/reports";
 import NotFound from "@/pages/not-found";
 
 function ProtectedRoute({ component: Component }: { component: React.ComponentType }) {
@@ -55,6 +57,28 @@ function AdminRoute({ component: Component }: { component: React.ComponentType }
   return <Component />;
 }
 
+function AdminOrLevel1Route({ component: Component }: { component: React.ComponentType }) {
+  const { user, isLoading } = useAuth();
+  
+  if (isLoading) {
+    return <div className="min-h-screen flex items-center justify-center">
+      <div className="text-lg">در حال بارگذاری...</div>
+    </div>;
+  }
+  
+  if (!user) {
+    return <Login />;
+  }
+  
+  if (user.role !== "admin" && user.role !== "user_level_1") {
+    return <div className="min-h-screen flex items-center justify-center">
+      <div className="text-lg text-destructive">دسترسی محدود - این صفحه مخصوص مدیران و کاربران سطح ۱ است</div>
+    </div>;
+  }
+  
+  return <Component />;
+}
+
 function Router() {
   const { user } = useAuth();
   
@@ -66,7 +90,9 @@ function Router() {
       <Route path="/users" component={() => <AdminRoute component={UserManagement} />} />
       <Route path="/tickets" component={() => <AdminRoute component={TicketManagement} />} />
       <Route path="/subscriptions" component={() => <AdminRoute component={Subscriptions} />} />
-      <Route path="/whatsapp-settings" component={() => <AdminRoute component={WhatsappSettings} />} />
+      <Route path="/whatsapp-settings" component={() => <AdminOrLevel1Route component={WhatsappSettings} />} />
+      <Route path="/send-message" component={() => <AdminOrLevel1Route component={SendMessage} />} />
+      <Route path="/reports" component={() => <AdminOrLevel1Route component={Reports} />} />
       <Route path="/profile" component={() => <ProtectedRoute component={Profile} />} />
       <Route path="/send-ticket" component={() => <ProtectedRoute component={SendTicket} />} />
       <Route path="/add-product" component={() => <ProtectedRoute component={AddProduct} />} />

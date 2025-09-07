@@ -1,8 +1,8 @@
 import { Pool } from "pg";
 import { drizzle } from "drizzle-orm/node-postgres";
-import { eq } from "drizzle-orm";
-import { users, tickets, subscriptions, products, whatsappSettings } from "@shared/schema";
-import { type User, type InsertUser, type Ticket, type InsertTicket, type Subscription, type InsertSubscription, type Product, type InsertProduct, type WhatsappSettings, type InsertWhatsappSettings } from "@shared/schema";
+import { eq, sql, desc } from "drizzle-orm";
+import { users, tickets, subscriptions, products, whatsappSettings, sentMessages, receivedMessages } from "@shared/schema";
+import { type User, type InsertUser, type Ticket, type InsertTicket, type Subscription, type InsertSubscription, type Product, type InsertProduct, type WhatsappSettings, type InsertWhatsappSettings, type SentMessage, type InsertSentMessage, type ReceivedMessage, type InsertReceivedMessage } from "@shared/schema";
 import { type IStorage } from "./storage";
 import bcrypt from "bcryptjs";
 
@@ -199,5 +199,55 @@ export class DbStorage implements IStorage {
       const result = await db.insert(whatsappSettings).values(settings).returning();
       return result[0];
     }
+  }
+
+  // Messages
+  async getSentMessagesByUser(userId: string): Promise<SentMessage[]> {
+    return await db.select().from(sentMessages).where(eq(sentMessages.userId, userId));
+  }
+
+  async createSentMessage(insertMessage: InsertSentMessage): Promise<SentMessage> {
+    const result = await db.insert(sentMessages).values(insertMessage).returning();
+    return result[0];
+  }
+
+  async getReceivedMessagesByUser(userId: string): Promise<ReceivedMessage[]> {
+    return await db.select().from(receivedMessages).where(eq(receivedMessages.userId, userId));
+  }
+
+  async getReceivedMessagesByUserPaginated(userId: string, page: number, limit: number): Promise<{ messages: ReceivedMessage[], total: number, totalPages: number }> {
+    const offset = (page - 1) * limit;
+    
+    // Get total count
+    const countResult = await db.select({ count: sql<number>`count(*)` })
+      .from(receivedMessages)
+      .where(eq(receivedMessages.userId, userId));
+    const total = countResult[0].count;
+    const totalPages = Math.ceil(total / limit);
+    
+    // Get paginated messages ordered by timestamp desc
+    const messages = await db.select()
+      .from(receivedMessages)
+      .where(eq(receivedMessages.userId, userId))
+      .orderBy(desc(receivedMessages.timestamp))
+      .limit(limit)
+      .offset(offset);
+    
+    return { messages, total, totalPages };
+  }
+
+  async getReceivedMessageByWhatsiPlusId(whatsiPlusId: string): Promise<ReceivedMessage | undefined> {
+    const result = await db.select().from(receivedMessages).where(eq(receivedMessages.whatsiPlusId, whatsiPlusId)).limit(1);
+    return result[0];
+  }
+
+  async createReceivedMessage(insertMessage: InsertReceivedMessage): Promise<ReceivedMessage> {
+    const result = await db.insert(receivedMessages).values(insertMessage).returning();
+    return result[0];
+  }
+
+  async updateReceivedMessageStatus(id: string, status: string): Promise<ReceivedMessage | undefined> {
+    const result = await db.update(receivedMessages).set({ status }).where(eq(receivedMessages.id, id)).returning();
+    return result[0];
   }
 }
