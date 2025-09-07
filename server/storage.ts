@@ -295,7 +295,9 @@ export class MemStorage implements IStorage {
 
   // Messages
   async getSentMessagesByUser(userId: string): Promise<SentMessage[]> {
-    return Array.from(this.sentMessages.values()).filter(message => message.userId === userId);
+    return Array.from(this.sentMessages.values())
+      .filter(message => message.userId === userId)
+      .sort((a, b) => (b.timestamp?.getTime() || 0) - (a.timestamp?.getTime() || 0));
   }
 
   async createSentMessage(insertMessage: InsertSentMessage): Promise<SentMessage> {

@@ -122,7 +122,7 @@ class WhatsAppMessageService {
 
             // پاسخ خودکار با Gemini AI
             if (savedMessageId && geminiService.isActive()) {
-              await this.handleAutoResponse(message.from, message.message, savedMessageId, authorizedUsers[0].id);
+              await this.handleAutoResponse(message.from, message.message, message.id, authorizedUsers[0].id);
             }
             
             newMessagesCount++;
@@ -146,36 +146,76 @@ class WhatsAppMessageService {
     }
   }
 
-  async handleAutoResponse(sender: string, incomingMessage: string, messageId: string, userId: string) {
+  /**
+   * یک پاسخ هوشمند برای پیام ورودی ایجاد کرده و آن را از طریق واتس‌اپ ارسال می‌کند.
+   * @param sender شماره موبایل فرستنده پیام
+   * @param incomingMessage پیام دریافت شده از کاربر
+   * @param whatsiPlusId شناسه پیام از WhatsiPlus API
+   * @param userId شناسه کاربر
+   */
+  async handleAutoResponse(sender: string, incomingMessage: string, whatsiPlusId: string, userId: string) {
     try {
       console.log(`🤖 در حال تولید پاسخ برای پیام از ${sender}...`);
       
+      // دریافت تنظیمات هوش مصنوعی
+      const aiTokenSettings = await storage.getAiTokenSettings();
+      if (!aiTokenSettings?.token || !aiTokenSettings.isActive) {
+        console.log("⚠️ توکن هوش مصنوعی تنظیم نشده یا غیرفعال است");
+        return;
+      }
+
       // تولید پاسخ با Gemini AI
       const aiResponse = await geminiService.generateResponse(incomingMessage);
       
-      // ارسال پاسخ
-      const sendSuccess = await whatsAppSender.sendMessage(sender, aiResponse, userId);
+      // دریافت تنظیمات واتس‌اپ
+      const whatsappSettings = await storage.getWhatsappSettings();
+      if (!whatsappSettings?.token || !whatsappSettings.isEnabled) {
+        console.log("⚠️ تنظیمات واتس‌اپ برای ارسال پاسخ خودکار فعال نیست");
+        return;
+      }
+
+      // محدود کردن طول پاسخ برای جلوگیری از خطای 414
+      const maxLength = 200; // حداکثر 200 کاراکتر
+      const finalResponse = aiResponse.length > maxLength 
+        ? aiResponse.substring(0, maxLength) + '...'
+        : aiResponse;
+
+      // ارسال پاسخ از طریق WhatsiPlus API با GET method
+      const sendUrl = `https://api.whatsiplus.com/sendMsg/${whatsappSettings.token}?phonenumber=${sender}&message=${encodeURIComponent(finalResponse)}`;
       
-      if (sendSuccess) {
+      console.log(`🔄 در حال ارسال پاسخ خودکار به ${sender}...`);
+      const sendResponse = await fetch(sendUrl, { method: 'GET' });
+
+      if (sendResponse.ok) {
+        // ذخیره پیام ارسالی در دیتابیس
+        await storage.createSentMessage({
+          userId: userId,
+          recipient: sender,
+          message: aiResponse,
+          status: "sent"
+        });
+
         // تغییر وضعیت پیام به خوانده شده
         const users = await storage.getAllUsers();
         const authorizedUsers = users.filter(user => user.role === 'admin' || user.role === 'user_level_1');
         
         for (const user of authorizedUsers) {
           const userMessages = await storage.getReceivedMessagesByUser(user.id);
-          const userMessage = userMessages.find(msg => msg.whatsiPlusId === messageId);
+          const userMessage = userMessages.find(msg => msg.whatsiPlusId === whatsiPlusId);
           if (userMessage) {
             await storage.updateReceivedMessageStatus(userMessage.id, "خوانده شده");
+            console.log(`📖 وضعیت پیام ${whatsiPlusId} برای کاربر ${user.username} به "خوانده شده" تغییر کرد`);
           }
         }
         
-        console.log(`✅ پاسخ خودکار به ${sender} ارسال شد و پیام به حالت خوانده شده درآمد`);
+        console.log(`✅ پاسخ خودکار به ${sender} ارسال شد: "${aiResponse.substring(0, 50)}..."`);
       } else {
-        console.log(`❌ خطا در ارسال پاسخ خودکار به ${sender}`);
+        const errorText = await sendResponse.text();
+        console.error(`❌ خطا در ارسال پاسخ خودکار به ${sender}:`, errorText);
       }
       
     } catch (error) {
-      console.error("❌ خطا در پاسخ خودکار:", error);
+      console.error("❌ خطا در فرآیند پاسخ خودکار:", error);
     }
   }
 

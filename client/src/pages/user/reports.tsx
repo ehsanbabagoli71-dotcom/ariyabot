@@ -184,6 +184,7 @@ export default function Reports() {
   useEffect(() => {
     const interval = setInterval(() => {
       fetchReceivedMessages(currentPage);
+      fetchSentMessages(); // اضافه کردن بروزرسانی پیام‌های ارسالی
     }, 5000);
 
     return () => clearInterval(interval);

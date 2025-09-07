@@ -14,7 +14,7 @@ export class GeminiService {
       const tokenSettings = await storage.getAiTokenSettings();
       if (tokenSettings?.token && tokenSettings.isActive) {
         this.genAI = new GoogleGenerativeAI(tokenSettings.token);
-        this.model = this.genAI.getGenerativeModel({ model: "gemini-pro" });
+        this.model = this.genAI.getGenerativeModel({ model: "gemini-2.0-flash-exp" });
         console.log("🤖 سرویس Gemini AI با موفقیت راه‌اندازی شد");
       } else {
         console.log("⚠️ توکن Gemini AI تنظیم نشده یا غیرفعال است");
@@ -41,15 +41,22 @@ ${message}
 
 پاسخ شما باید:
 - به زبان فارسی باشد
-- مفید و مفصل باشد  
-- مؤدبانه و دوستانه باشد
-- حداکثر 500 کلمه باشد`;
+- حداکثر 20 کلمه باشد
+- مؤدبانه و مستقیم باشد
+- بدون توضیحات اضافی باشد`;
 
       const result = await this.model.generateContent(prompt);
       const response = await result.response;
       const text = response.text();
       
-      return text.trim() || "متأسفانه نتوانستم پاسخ مناسبی تولید کنم.";
+      const finalText = text.trim() || "متأسفانه نتوانستم پاسخ مناسبی تولید کنم.";
+      
+      // محدود کردن طول پاسخ برای ارسال بهتر
+      if (finalText.length > 200) {
+        return finalText.substring(0, 200) + '...';
+      }
+      
+      return finalText;
     } catch (error) {
       console.error("❌ خطا در تولید پاسخ Gemini:", error);
       throw new Error("خطا در تولید پاسخ هوش مصنوعی");
