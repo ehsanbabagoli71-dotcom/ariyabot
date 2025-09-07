@@ -54,20 +54,20 @@ class WhatsAppMessageService {
       const settings = await storage.getWhatsappSettings();
       
       if (!settings || !settings.token || !settings.isEnabled) {
-        // console.log("⚠️ تنظیمات واتس‌اپ فعال نیست یا توکن موجود نیست");
-        // if (!settings) console.log("   - تنظیمات موجود نیست");
-        // if (settings && !settings.token) console.log("   - توکن موجود نیست");
-        // if (settings && !settings.isEnabled) console.log("   - سرویس فعال نیست");
+        console.log("⚠️ تنظیمات واتس‌اپ فعال نیست یا توکن موجود نیست");
+        if (!settings) console.log("   - تنظیمات موجود نیست");
+        if (settings && !settings.token) console.log("   - توکن موجود نیست");
+        if (settings && !settings.isEnabled) console.log("   - سرویس فعال نیست");
         return;
       }
 
-      console.log(`🔄 چک کردن پیام‌های جدید از ${settings.phoneNumber || 'unknown'}...`);
+      console.log(`🔄 چک کردن پیام‌های جدید...`);
 
       // دریافت پیام‌ها از WhatsiPlus API با timeout بهبود یافته
       const controller = new AbortController();
       const timeoutId = setTimeout(() => controller.abort(), 10000); // 10 second timeout
       
-      const response = await fetch(`https://api.whatsiplus.com/receivedMessages/${settings.token}?page=1&phonenumber=${settings.phoneNumber || ''}`, {
+      const response = await fetch(`https://api.whatsiplus.com/receivedMessages/${settings.token}?page=1`, {
         method: 'GET',
         signal: controller.signal,
         headers: {

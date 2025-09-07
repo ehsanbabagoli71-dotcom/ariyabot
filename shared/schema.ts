@@ -56,8 +56,7 @@ export const products = pgTable("products", {
 export const whatsappSettings = pgTable("whatsapp_settings", {
   id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
   token: text("token"),
-  phoneNumber: text("phone_number"),
-  isEnabled: boolean("is_enabled").notNull().default(false),
+  isEnabled: boolean("is_enabled").notNull().default(true),
   notifications: text("notifications").array().default([]),
   updatedAt: timestamp("updated_at").defaultNow(),
 });

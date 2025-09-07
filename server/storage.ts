@@ -279,7 +279,6 @@ export class MemStorage implements IStorage {
       ...settings,
       id: this.whatsappSettings?.id || randomUUID(),
       token: settings.token || null,
-      phoneNumber: settings.phoneNumber || null,
       isEnabled: settings.isEnabled || false,
       notifications: settings.notifications || null,
       updatedAt: new Date(),

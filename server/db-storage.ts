@@ -41,7 +41,6 @@ export class DbStorage implements IStorage {
           phone: "09123456789",
           password: hashedPassword,
           role: "admin",
-          userLevel: "user_level_1",
         });
       }
     } catch (error) {
