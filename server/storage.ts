@@ -1,4 +1,4 @@
-import { type User, type InsertUser, type Ticket, type InsertTicket, type Subscription, type InsertSubscription, type Product, type InsertProduct, type WhatsappSettings, type InsertWhatsappSettings, type SentMessage, type InsertSentMessage, type ReceivedMessage, type InsertReceivedMessage } from "@shared/schema";
+import { type User, type InsertUser, type Ticket, type InsertTicket, type Subscription, type InsertSubscription, type Product, type InsertProduct, type WhatsappSettings, type InsertWhatsappSettings, type SentMessage, type InsertSentMessage, type ReceivedMessage, type InsertReceivedMessage, type AiTokenSettings, type InsertAiTokenSettings } from "@shared/schema";
 import { randomUUID } from "crypto";
 import bcrypt from "bcryptjs";
 
@@ -49,6 +49,10 @@ export interface IStorage {
   getReceivedMessageByWhatsiPlusId(whatsiPlusId: string): Promise<ReceivedMessage | undefined>;
   createReceivedMessage(message: InsertReceivedMessage): Promise<ReceivedMessage>;
   updateReceivedMessageStatus(id: string, status: string): Promise<ReceivedMessage | undefined>;
+
+  // AI Token Settings
+  getAiTokenSettings(): Promise<AiTokenSettings | undefined>;
+  updateAiTokenSettings(settings: InsertAiTokenSettings): Promise<AiTokenSettings>;
 }
 
 export class MemStorage implements IStorage {
@@ -59,6 +63,7 @@ export class MemStorage implements IStorage {
   private whatsappSettings: WhatsappSettings | undefined;
   private sentMessages: Map<string, SentMessage>;
   private receivedMessages: Map<string, ReceivedMessage>;
+  private aiTokenSettings: AiTokenSettings | undefined;
 
   constructor() {
     this.users = new Map();
@@ -68,6 +73,7 @@ export class MemStorage implements IStorage {
     this.whatsappSettings = undefined;
     this.sentMessages = new Map();
     this.receivedMessages = new Map();
+    this.aiTokenSettings = undefined;
     
     // Create default admin user
     this.initializeAdminUser();
@@ -346,6 +352,24 @@ export class MemStorage implements IStorage {
     const updatedMessage = { ...message, status };
     this.receivedMessages.set(id, updatedMessage);
     return updatedMessage;
+  }
+
+  // AI Token Settings
+  async getAiTokenSettings(): Promise<AiTokenSettings | undefined> {
+    return this.aiTokenSettings;
+  }
+
+  async updateAiTokenSettings(settings: InsertAiTokenSettings): Promise<AiTokenSettings> {
+    const aiTokenSettings: AiTokenSettings = {
+      ...settings,
+      id: this.aiTokenSettings?.id || randomUUID(),
+      provider: settings.provider || "openai",
+      isActive: settings.isActive !== undefined ? settings.isActive : true,
+      createdAt: this.aiTokenSettings?.createdAt || new Date(),
+      updatedAt: new Date(),
+    };
+    this.aiTokenSettings = aiTokenSettings;
+    return aiTokenSettings;
   }
 }
 

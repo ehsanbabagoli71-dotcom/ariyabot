@@ -6,7 +6,7 @@ import jwt from "jsonwebtoken";
 import multer from "multer";
 import path from "path";
 import { fileURLToPath } from "url";
-import { insertUserSchema, insertTicketSchema, insertSubscriptionSchema, insertProductSchema, insertWhatsappSettingsSchema, insertSentMessageSchema, insertReceivedMessageSchema, type User } from "@shared/schema";
+import { insertUserSchema, insertTicketSchema, insertSubscriptionSchema, insertProductSchema, insertWhatsappSettingsSchema, insertSentMessageSchema, insertReceivedMessageSchema, insertAiTokenSettingsSchema, type User } from "@shared/schema";
 import { z } from "zod";
 
 const __filename = fileURLToPath(import.meta.url);
@@ -362,6 +362,34 @@ export async function registerRoutes(app: Express): Promise<Server> {
       res.json({ message: "اشتراک با موفقیت حذف شد" });
     } catch (error) {
       res.status(500).json({ message: "خطا در حذف اشتراک" });
+    }
+  });
+
+  // AI Token routes
+  app.get("/api/ai-token", authenticateToken, requireAdmin, async (req, res) => {
+    try {
+      const settings = await storage.getAiTokenSettings();
+      res.json(settings || {});
+    } catch (error) {
+      res.status(500).json({ message: "خطا در دریافت توکن هوش مصنوعی" });
+    }
+  });
+
+  app.post("/api/ai-token", authenticateToken, requireAdmin, async (req, res) => {
+    try {
+      const validatedData = insertAiTokenSettingsSchema.parse(req.body);
+      const settings = await storage.updateAiTokenSettings(validatedData);
+      
+      // بازخوانی سرویس Gemini با توکن جدید
+      const { geminiService } = await import("./gemini-service");
+      await geminiService.reinitialize();
+      
+      res.json(settings);
+    } catch (error) {
+      if (error instanceof z.ZodError) {
+        return res.status(400).json({ message: "داده های ورودی نامعتبر است", errors: error.errors });
+      }
+      res.status(500).json({ message: "خطا در ذخیره توکن هوش مصنوعی" });
     }
   });
 

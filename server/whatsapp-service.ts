@@ -1,4 +1,6 @@
 import { storage } from "./storage";
+import { geminiService } from "./gemini-service";
+import { whatsAppSender } from "./whatsapp-sender";
 
 interface WhatsiPlusMessage {
   id: string;
@@ -105,8 +107,9 @@ class WhatsAppMessageService {
             const authorizedUsers = users.filter(user => user.role === 'admin' || user.role === 'user_level_1');
 
             // ذخیره پیام برای هر کاربر مجاز
+            let savedMessageId: string | null = null;
             for (const user of authorizedUsers) {
-              await storage.createReceivedMessage({
+              const savedMessage = await storage.createReceivedMessage({
                 userId: user.id,
                 whatsiPlusId: message.id,
                 sender: message.from,
@@ -114,6 +117,12 @@ class WhatsAppMessageService {
                 status: "خوانده نشده",
                 originalDate: message.date
               });
+              if (!savedMessageId) savedMessageId = savedMessage.id;
+            }
+
+            // پاسخ خودکار با Gemini AI
+            if (savedMessageId && geminiService.isActive()) {
+              await this.handleAutoResponse(message.from, message.message, savedMessageId, authorizedUsers[0].id);
             }
             
             newMessagesCount++;
@@ -137,10 +146,44 @@ class WhatsAppMessageService {
     }
   }
 
+  async handleAutoResponse(sender: string, incomingMessage: string, messageId: string, userId: string) {
+    try {
+      console.log(`🤖 در حال تولید پاسخ برای پیام از ${sender}...`);
+      
+      // تولید پاسخ با Gemini AI
+      const aiResponse = await geminiService.generateResponse(incomingMessage);
+      
+      // ارسال پاسخ
+      const sendSuccess = await whatsAppSender.sendMessage(sender, aiResponse, userId);
+      
+      if (sendSuccess) {
+        // تغییر وضعیت پیام به خوانده شده
+        const users = await storage.getAllUsers();
+        const authorizedUsers = users.filter(user => user.role === 'admin' || user.role === 'user_level_1');
+        
+        for (const user of authorizedUsers) {
+          const userMessages = await storage.getReceivedMessagesByUser(user.id);
+          const userMessage = userMessages.find(msg => msg.whatsiPlusId === messageId);
+          if (userMessage) {
+            await storage.updateReceivedMessageStatus(userMessage.id, "خوانده شده");
+          }
+        }
+        
+        console.log(`✅ پاسخ خودکار به ${sender} ارسال شد و پیام به حالت خوانده شده درآمد`);
+      } else {
+        console.log(`❌ خطا در ارسال پاسخ خودکار به ${sender}`);
+      }
+      
+    } catch (error) {
+      console.error("❌ خطا در پاسخ خودکار:", error);
+    }
+  }
+
   getStatus() {
     return {
       isRunning: this.isRunning,
-      lastFetchTime: this.lastFetchTime
+      lastFetchTime: this.lastFetchTime,
+      geminiActive: geminiService.isActive()
     };
   }
 }

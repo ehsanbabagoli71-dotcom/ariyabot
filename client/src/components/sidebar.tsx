@@ -18,7 +18,8 @@ import {
   Settings,
   ChevronDown,
   LogOut,
-  BarChart3
+  BarChart3,
+  Bot
 } from "lucide-react";
 import { useAuth } from "@/hooks/use-auth";
 
@@ -27,6 +28,7 @@ export function Sidebar() {
   const { user, logout } = useAuth();
   const [inventoryOpen, setInventoryOpen] = useState(false);
   const [whatsappOpen, setWhatsappOpen] = useState(false);
+  const [settingsOpen, setSettingsOpen] = useState(false);
 
   const isActive = (path: string) => location === path;
 
@@ -50,6 +52,10 @@ export function Sidebar() {
     { path: "/whatsapp-settings", label: "تنظیمات واتس‌اپ", icon: Settings, adminOnly: false },
     { path: "/send-message", label: "ارسال پیام", icon: Send, adminOnly: false },
     { path: "/reports", label: "گزارش‌ها", icon: BarChart3, adminOnly: false },
+  ];
+
+  const settingsItems = [
+    { path: "/ai-token", label: "توکن هوش مصنوعی", icon: Bot },
   ];
 
   return (
@@ -145,6 +151,46 @@ export function Sidebar() {
             </li>
           )}
           
+          {/* Settings Section - Admin Only */}
+          {user?.role === "admin" && (
+            <li>
+              <Collapsible open={settingsOpen} onOpenChange={setSettingsOpen}>
+                <CollapsibleTrigger asChild>
+                  <Button
+                    variant="ghost"
+                    className="w-full justify-start"
+                    data-testid="button-settings-toggle"
+                  >
+                    <Settings className="w-5 h-5 ml-2" />
+                    تنظیمات
+                    <ChevronDown className={cn(
+                      "w-4 h-4 mr-auto transition-transform",
+                      settingsOpen && "rotate-180"
+                    )} />
+                  </Button>
+                </CollapsibleTrigger>
+                <CollapsibleContent className="mr-6 space-y-1">
+                  {settingsItems.map((item) => (
+                    <Link key={item.path} href={item.path}>
+                      <Button
+                        variant={isActive(item.path) ? "default" : "ghost"}
+                        size="sm"
+                        className={cn(
+                          "w-full justify-start",
+                          isActive(item.path) && "bg-primary text-primary-foreground"
+                        )}
+                        data-testid={`link-${item.path.substring(1)}`}
+                      >
+                        <item.icon className="w-4 h-4 ml-2" />
+                        {item.label}
+                      </Button>
+                    </Link>
+                  ))}
+                </CollapsibleContent>
+              </Collapsible>
+            </li>
+          )}
+
           {/* WhatsApp Integration */}
           <li>
             <Collapsible open={whatsappOpen} onOpenChange={setWhatsappOpen}>

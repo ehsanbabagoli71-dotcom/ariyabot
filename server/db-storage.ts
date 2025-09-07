@@ -1,8 +1,8 @@
 import { Pool } from "pg";
 import { drizzle } from "drizzle-orm/node-postgres";
 import { eq, sql, desc } from "drizzle-orm";
-import { users, tickets, subscriptions, products, whatsappSettings, sentMessages, receivedMessages } from "@shared/schema";
-import { type User, type InsertUser, type Ticket, type InsertTicket, type Subscription, type InsertSubscription, type Product, type InsertProduct, type WhatsappSettings, type InsertWhatsappSettings, type SentMessage, type InsertSentMessage, type ReceivedMessage, type InsertReceivedMessage } from "@shared/schema";
+import { users, tickets, subscriptions, products, whatsappSettings, sentMessages, receivedMessages, aiTokenSettings } from "@shared/schema";
+import { type User, type InsertUser, type Ticket, type InsertTicket, type Subscription, type InsertSubscription, type Product, type InsertProduct, type WhatsappSettings, type InsertWhatsappSettings, type SentMessage, type InsertSentMessage, type ReceivedMessage, type InsertReceivedMessage, type AiTokenSettings, type InsertAiTokenSettings } from "@shared/schema";
 import { type IStorage } from "./storage";
 import bcrypt from "bcryptjs";
 
@@ -252,5 +252,24 @@ export class DbStorage implements IStorage {
   async updateReceivedMessageStatus(id: string, status: string): Promise<ReceivedMessage | undefined> {
     const result = await db.update(receivedMessages).set({ status }).where(eq(receivedMessages.id, id)).returning();
     return result[0];
+  }
+
+  // AI Token Settings
+  async getAiTokenSettings(): Promise<AiTokenSettings | undefined> {
+    const result = await db.select().from(aiTokenSettings).limit(1);
+    return result[0];
+  }
+
+  async updateAiTokenSettings(settings: InsertAiTokenSettings): Promise<AiTokenSettings> {
+    // First try to get existing settings
+    const existing = await this.getAiTokenSettings();
+    
+    if (existing) {
+      const result = await db.update(aiTokenSettings).set(settings).where(eq(aiTokenSettings.id, existing.id)).returning();
+      return result[0];
+    } else {
+      const result = await db.insert(aiTokenSettings).values(settings).returning();
+      return result[0];
+    }
   }
 }

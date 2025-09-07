@@ -81,6 +81,15 @@ export const receivedMessages = pgTable("received_messages", {
   timestamp: timestamp("timestamp").defaultNow(),
 });
 
+export const aiTokenSettings = pgTable("ai_token_settings", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  token: text("token").notNull(),
+  provider: text("provider").notNull().default("openai"), // openai, claude, etc
+  isActive: boolean("is_active").notNull().default(true),
+  createdAt: timestamp("created_at").defaultNow(),
+  updatedAt: timestamp("updated_at").defaultNow(),
+});
+
 // Insert schemas
 export const insertUserSchema = createInsertSchema(users).omit({
   id: true,
@@ -120,6 +129,12 @@ export const insertReceivedMessageSchema = createInsertSchema(receivedMessages).
   timestamp: true,
 });
 
+export const insertAiTokenSettingsSchema = createInsertSchema(aiTokenSettings).omit({
+  id: true,
+  createdAt: true,
+  updatedAt: true,
+});
+
 // Types
 export type User = typeof users.$inferSelect;
 export type InsertUser = z.infer<typeof insertUserSchema>;
@@ -141,3 +156,6 @@ export type InsertSentMessage = z.infer<typeof insertSentMessageSchema>;
 
 export type ReceivedMessage = typeof receivedMessages.$inferSelect;
 export type InsertReceivedMessage = z.infer<typeof insertReceivedMessageSchema>;
+
+export type AiTokenSettings = typeof aiTokenSettings.$inferSelect;
+export type InsertAiTokenSettings = z.infer<typeof insertAiTokenSettingsSchema>;

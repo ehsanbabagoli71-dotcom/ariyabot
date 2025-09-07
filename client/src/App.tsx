@@ -11,6 +11,7 @@ import UserManagement from "@/pages/admin/user-management";
 import TicketManagement from "@/pages/admin/ticket-management";
 import Subscriptions from "@/pages/admin/subscriptions";
 import WhatsappSettings from "@/pages/admin/whatsapp-settings";
+import AITokenSettings from "@/pages/admin/ai-token";
 import Profile from "@/pages/user/profile";
 import SendTicket from "@/pages/user/send-ticket";
 import SendMessage from "@/pages/user/send-message";
@@ -90,6 +91,7 @@ function Router() {
       <Route path="/users" component={() => <AdminRoute component={UserManagement} />} />
       <Route path="/tickets" component={() => <AdminRoute component={TicketManagement} />} />
       <Route path="/subscriptions" component={() => <AdminRoute component={Subscriptions} />} />
+      <Route path="/ai-token" component={() => <AdminRoute component={AITokenSettings} />} />
       <Route path="/whatsapp-settings" component={() => <AdminOrLevel1Route component={WhatsappSettings} />} />
       <Route path="/send-message" component={() => <AdminOrLevel1Route component={SendMessage} />} />
       <Route path="/reports" component={() => <AdminOrLevel1Route component={Reports} />} />
