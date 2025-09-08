@@ -6,12 +6,14 @@ import { Input } from "@/components/ui/input";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Label } from "@/components/ui/label";
 import { Alert, AlertDescription } from "@/components/ui/alert";
-import { Bot, Key, Save, Eye, EyeOff } from "lucide-react";
+import { Switch } from "@/components/ui/switch";
+import { Bot, Key, Save, Eye, EyeOff, Power } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { createAuthenticatedRequest } from "@/lib/auth";
 
 export default function AITokenSettings() {
   const [token, setToken] = useState("");
+  const [isActive, setIsActive] = useState(true);
   const [showToken, setShowToken] = useState(false);
   const { toast } = useToast();
   const queryClient = useQueryClient();
@@ -22,7 +24,7 @@ export default function AITokenSettings() {
       const response = await createAuthenticatedRequest("/api/ai-token");
       if (!response.ok) {
         if (response.status === 404) {
-          return { token: "" };
+          return { token: "", isActive: true };
         }
         throw new Error("خطا در دریافت توکن هوش مصنوعی");
       }
@@ -31,7 +33,7 @@ export default function AITokenSettings() {
   });
 
   const saveTokenMutation = useMutation({
-    mutationFn: async (tokenData: { token: string }) => {
+    mutationFn: async (tokenData: { token: string; isActive: boolean }) => {
       const response = await createAuthenticatedRequest("/api/ai-token", {
         method: "POST",
         body: JSON.stringify(tokenData),
@@ -57,13 +59,16 @@ export default function AITokenSettings() {
 
   const handleSaveToken = (e: React.FormEvent) => {
     e.preventDefault();
-    saveTokenMutation.mutate({ token });
+    saveTokenMutation.mutate({ token, isActive });
   };
 
-  // Set token when data is loaded
+  // Set token and status when data is loaded
   useState(() => {
     if (aiTokenData?.token && !token) {
       setToken(aiTokenData.token);
+    }
+    if (aiTokenData?.isActive !== undefined) {
+      setIsActive(aiTokenData.isActive);
     }
   });
 
@@ -118,6 +123,27 @@ export default function AITokenSettings() {
                   </div>
                 </div>
 
+                <div className="space-y-2">
+                  <Label htmlFor="ai-status" className="flex items-center gap-2">
+                    <Power className="w-4 h-4" />
+                    وضعیت هوش مصنوعی
+                  </Label>
+                  <div className="flex items-center space-x-2 space-x-reverse">
+                    <Switch
+                      id="ai-status"
+                      checked={isActive}
+                      onCheckedChange={setIsActive}
+                      data-testid="switch-ai-status"
+                    />
+                    <Label htmlFor="ai-status" className="text-sm text-muted-foreground">
+                      {isActive ? "فعال" : "غیرفعال"}
+                    </Label>
+                  </div>
+                  <p className="text-xs text-muted-foreground">
+                    در صورت غیرفعال بودن، سیستم به پیام‌های واتس‌اپ پاسخ خودکار نخواهد داد
+                  </p>
+                </div>
+
                 <Alert>
                   <Bot className="h-4 w-4" />
                   <AlertDescription>
@@ -131,6 +157,7 @@ export default function AITokenSettings() {
                     type="submit"
                     disabled={saveTokenMutation.isPending || !token.trim()}
                     data-testid="button-save-token"
+                    className={!isActive ? "opacity-60" : ""}
                   >
                     <Save className="w-4 h-4 ml-2" />
                     {saveTokenMutation.isPending ? "در حال ذخیره..." : "ذخیره توکن"}
