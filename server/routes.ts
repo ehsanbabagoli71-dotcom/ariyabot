@@ -16,8 +16,18 @@ const __dirname = path.dirname(__filename);
 const JWT_SECRET = process.env.JWT_SECRET || "your-secret-key";
 
 // Multer configuration for file uploads
+const storage_config = multer.diskStorage({
+  destination: (req, file, cb) => {
+    cb(null, path.join(__dirname, "../uploads"));
+  },
+  filename: (req, file, cb) => {
+    const uniqueSuffix = Date.now() + '-' + Math.round(Math.random() * 1E9);
+    cb(null, file.fieldname + '-' + uniqueSuffix + path.extname(file.originalname));
+  }
+});
+
 const upload = multer({
-  dest: path.join(__dirname, "../uploads"),
+  storage: storage_config,
   limits: { fileSize: 5 * 1024 * 1024 }, // 5MB limit
   fileFilter: (req: any, file: any, cb: any) => {
     const allowedTypes = ["image/jpeg", "image/png", "image/gif", "image/webp"];
@@ -321,15 +331,13 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
-  app.post("/api/subscriptions", authenticateToken, requireAdmin, upload.single("subscriptionImage"), async (req, res) => {
+  app.post("/api/subscriptions", authenticateToken, requireAdmin, async (req, res) => {
     try {
-      const validatedData = insertSubscriptionSchema.parse({
-        ...req.body,
-        image: (req as any).file ? `/uploads/${(req as any).file.filename}` : null,
-      });
+      const validatedData = insertSubscriptionSchema.parse(req.body);
       const subscription = await storage.createSubscription(validatedData);
       res.json(subscription);
     } catch (error) {
+      console.error("خطا در ایجاد اشتراک:", error);
       if (error instanceof z.ZodError) {
         return res.status(400).json({ message: "داده های ورودی نامعتبر است", errors: error.errors });
       }
@@ -337,13 +345,10 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
-  app.put("/api/subscriptions/:id", authenticateToken, requireAdmin, upload.single("subscriptionImage"), async (req, res) => {
+  app.put("/api/subscriptions/:id", authenticateToken, requireAdmin, async (req, res) => {
     try {
       const { id } = req.params;
-      const updates = {
-        ...req.body,
-        ...(req as any).file ? { image: `/uploads/${(req as any).file.filename}` } : {},
-      };
+      const updates = req.body;
       
       const subscription = await storage.updateSubscription(id, updates);
       if (!subscription) {
@@ -352,6 +357,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
       res.json(subscription);
     } catch (error) {
+      console.error("خطا در بروزرسانی اشتراک:", error);
       res.status(500).json({ message: "خطا در بروزرسانی اشتراک" });
     }
   });
@@ -411,10 +417,24 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
   app.post("/api/products", authenticateToken, upload.single("productImage"), async (req: AuthRequest, res) => {
     try {
+      let imageData = null;
+      
+      // اگر فایل آپلود شده باشد، آن را به base64 تبدیل می‌کنیم
+      if ((req as any).file) {
+        const fs = await import('fs');
+        const fileBuffer = fs.readFileSync((req as any).file.path);
+        const base64 = fileBuffer.toString('base64');
+        const mimeType = (req as any).file.mimetype;
+        imageData = `data:${mimeType};base64,${base64}`;
+        
+        // حذف فایل موقت
+        fs.unlinkSync((req as any).file.path);
+      }
+      
       const validatedData = insertProductSchema.parse({
         ...req.body,
         userId: req.user!.id,
-        image: (req as any).file ? `/uploads/${(req as any).file.filename}` : null,
+        image: imageData,
         priceBeforeDiscount: parseFloat(req.body.priceBeforeDiscount),
         priceAfterDiscount: req.body.priceAfterDiscount ? parseFloat(req.body.priceAfterDiscount) : null,
         quantity: parseInt(req.body.quantity),
@@ -423,6 +443,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       const product = await storage.createProduct(validatedData);
       res.json(product);
     } catch (error) {
+      console.error("خطا در ایجاد محصول:", error);
       if (error instanceof z.ZodError) {
         return res.status(400).json({ message: "داده های ورودی نامعتبر است", errors: error.errors });
       }
@@ -430,10 +451,22 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
-  app.put("/api/products/:id", authenticateToken, async (req: AuthRequest, res) => {
+  app.put("/api/products/:id", authenticateToken, upload.single("productImage"), async (req: AuthRequest, res) => {
     try {
       const { id } = req.params;
-      const updates = req.body;
+      let updates = { ...req.body };
+      
+      // اگر فایل جدید آپلود شده باشد، آن را به base64 تبدیل می‌کنیم
+      if ((req as any).file) {
+        const fs = await import('fs');
+        const fileBuffer = fs.readFileSync((req as any).file.path);
+        const base64 = fileBuffer.toString('base64');
+        const mimeType = (req as any).file.mimetype;
+        updates.image = `data:${mimeType};base64,${base64}`;
+        
+        // حذف فایل موقت
+        fs.unlinkSync((req as any).file.path);
+      }
       
       // Ensure user can only update their own products
       const product = await storage.getProduct(id);
@@ -444,6 +477,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       const updatedProduct = await storage.updateProduct(id, updates);
       res.json(updatedProduct);
     } catch (error) {
+      console.error("خطا در بروزرسانی محصول:", error);
       res.status(500).json({ message: "خطا در بروزرسانی محصول" });
     }
   });

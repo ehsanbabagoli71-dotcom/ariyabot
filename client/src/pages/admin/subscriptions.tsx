@@ -19,13 +19,15 @@ export default function Subscriptions() {
     name: "",
     description: "",
     userLevel: "user_level_1",
-    image: null as File | null,
+    imageUrl: "",
+    priceBeforeDiscount: "",
+    priceAfterDiscount: "",
+    duration: "monthly",
+    features: [""],
+    isActive: true,
   });
   const [editingSubscription, setEditingSubscription] = useState<Subscription | null>(null);
-  const [editImage, setEditImage] = useState<File | null>(null);
   const [isEditDialogOpen, setIsEditDialogOpen] = useState(false);
-  const [imagePreview, setImagePreview] = useState<string | null>(null);
-  const [editImagePreview, setEditImagePreview] = useState<string | null>(null);
   
   const { toast } = useToast();
   const queryClient = useQueryClient();
@@ -41,25 +43,34 @@ export default function Subscriptions() {
 
   const createMutation = useMutation({
     mutationFn: async (data: typeof formData) => {
-      const formDataToSend = new FormData();
-      formDataToSend.append("name", data.name);
-      formDataToSend.append("description", data.description);
-      formDataToSend.append("userLevel", data.userLevel);
-      if (data.image) {
-        formDataToSend.append("subscriptionImage", data.image);
-      }
-
       const response = await createAuthenticatedRequest("/api/subscriptions", {
         method: "POST",
-        body: formDataToSend,
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          name: data.name,
+          description: data.description,
+          userLevel: data.userLevel,
+          image: data.imageUrl || null,
+        }),
       });
       if (!response.ok) throw new Error("خطا در ایجاد اشتراک");
       return response.json();
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["/api/subscriptions"] });
-      setFormData({ name: "", description: "", userLevel: "user_level_1", image: null });
-      setImagePreview(null);
+      setFormData({ 
+        name: "", 
+        description: "", 
+        userLevel: "user_level_1", 
+        imageUrl: "",
+        priceBeforeDiscount: "",
+        priceAfterDiscount: "",
+        duration: "monthly",
+        features: [""],
+        isActive: true,
+      });
       toast({
         title: "✅ موفقیت",
         description: "اشتراک با موفقیت ایجاد شد",
@@ -76,17 +87,17 @@ export default function Subscriptions() {
 
   const updateMutation = useMutation({
     mutationFn: async ({ id, data }: { id: string; data: any }) => {
-      const formDataToSend = new FormData();
-      formDataToSend.append("name", data.name);
-      formDataToSend.append("description", data.description);
-      formDataToSend.append("userLevel", data.userLevel);
-      if (editImage) {
-        formDataToSend.append("subscriptionImage", editImage);
-      }
-
       const response = await createAuthenticatedRequest(`/api/subscriptions/${id}`, {
         method: "PUT",
-        body: formDataToSend,
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          name: data.name,
+          description: data.description,
+          userLevel: data.userLevel,
+          image: data.imageUrl || null,
+        }),
       });
       if (!response.ok) throw new Error("خطا در بروزرسانی اشتراک");
       return response.json();
@@ -95,8 +106,6 @@ export default function Subscriptions() {
       queryClient.invalidateQueries({ queryKey: ["/api/subscriptions"] });
       setIsEditDialogOpen(false);
       setEditingSubscription(null);
-      setEditImage(null);
-      setEditImagePreview(null);
       toast({
         title: "✅ موفقیت",
         description: "اشتراک با موفقیت بروزرسانی شد",
@@ -135,51 +144,7 @@ export default function Subscriptions() {
     },
   });
 
-  const handleImageChange = (e: React.ChangeEvent<HTMLInputElement>, isEdit = false) => {
-    const file = e.target.files?.[0];
-    if (file) {
-      if (file.size > 5 * 1024 * 1024) { // 5MB limit
-        toast({
-          title: "❌ خطا",
-          description: "حجم فایل نباید بیشتر از ۵ مگابایت باشد",
-          variant: "destructive",
-        });
-        return;
-      }
 
-      const allowedTypes = ["image/jpeg", "image/png", "image/gif", "image/webp"];
-      if (!allowedTypes.includes(file.type)) {
-        toast({
-          title: "❌ خطا",
-          description: "فقط فایل‌های تصویری (JPG, PNG, GIF, WEBP) مجاز هستند",
-          variant: "destructive",
-        });
-        return;
-      }
-
-      if (isEdit) {
-        setEditImage(file);
-        const reader = new FileReader();
-        reader.onload = (e) => setEditImagePreview(e.target?.result as string);
-        reader.readAsDataURL(file);
-      } else {
-        setFormData({ ...formData, image: file });
-        const reader = new FileReader();
-        reader.onload = (e) => setImagePreview(e.target?.result as string);
-        reader.readAsDataURL(file);
-      }
-    }
-  };
-
-  const removeImage = (isEdit = false) => {
-    if (isEdit) {
-      setEditImage(null);
-      setEditImagePreview(null);
-    } else {
-      setFormData({ ...formData, image: null });
-      setImagePreview(null);
-    }
-  };
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
@@ -198,7 +163,6 @@ export default function Subscriptions() {
 
   const handleEdit = (subscription: Subscription) => {
     setEditingSubscription(subscription);
-    setEditImagePreview(subscription.image || null);
     setIsEditDialogOpen(true);
   };
 
@@ -208,10 +172,17 @@ export default function Subscriptions() {
 
     const form = e.target as HTMLFormElement;
     const formData = new FormData(form);
+    const featuresValue = formData.get("features") as string;
     const data = {
       name: formData.get("name") as string,
       description: formData.get("description") as string,
       userLevel: formData.get("userLevel") as string,
+      imageUrl: formData.get("imageUrl") as string,
+      priceBeforeDiscount: formData.get("priceBeforeDiscount") as string,
+      priceAfterDiscount: formData.get("priceAfterDiscount") as string,
+      duration: formData.get("duration") as string,
+      features: featuresValue ? featuresValue.split(',').map(f => f.trim()).filter(f => f) : [],
+      isActive: formData.get("isActive") === 'on',
     };
 
     updateMutation.mutate({ id: editingSubscription.id, data });
@@ -290,51 +261,143 @@ export default function Subscriptions() {
                       value={formData.description}
                       onChange={(e) => setFormData({ ...formData, description: e.target.value })}
                       placeholder="توضیحات اشتراک را وارد کنید"
-                      rows={4}
+                      rows={3}
                       className="mt-1"
                     />
+                  </div>
+
+                  <div className="grid grid-cols-2 gap-4">
+                    <div>
+                      <Label htmlFor="priceBeforeDiscount" className="text-sm font-medium">
+                        قیمت قبل تخفیف (تومان)
+                      </Label>
+                      <Input
+                        id="priceBeforeDiscount"
+                        type="number"
+                        value={formData.priceBeforeDiscount}
+                        onChange={(e) => setFormData({ ...formData, priceBeforeDiscount: e.target.value })}
+                        placeholder="100000"
+                        className="mt-1"
+                      />
+                    </div>
+                    
+                    <div>
+                      <Label htmlFor="priceAfterDiscount" className="text-sm font-medium">
+                        قیمت بعد تخفیف (تومان)
+                      </Label>
+                      <Input
+                        id="priceAfterDiscount"
+                        type="number"
+                        value={formData.priceAfterDiscount}
+                        onChange={(e) => setFormData({ ...formData, priceAfterDiscount: e.target.value })}
+                        placeholder="80000"
+                        className="mt-1"
+                      />
+                    </div>
+                  </div>
+
+                  <div className="grid grid-cols-2 gap-4">
+                    <div>
+                      <Label htmlFor="duration" className="text-sm font-medium">
+                        مدت زمان اشتراک
+                      </Label>
+                      <Select
+                        value={formData.duration}
+                        onValueChange={(value) => setFormData({ ...formData, duration: value })}
+                      >
+                        <SelectTrigger className="mt-1">
+                          <SelectValue />
+                        </SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="monthly">ماهانه</SelectItem>
+                          <SelectItem value="yearly">سالانه</SelectItem>
+                        </SelectContent>
+                      </Select>
+                    </div>
+
+                    <div>
+                      <Label className="text-sm font-medium flex items-center gap-2">
+                        وضعیت فعال
+                        <input
+                          type="checkbox"
+                          checked={formData.isActive}
+                          onChange={(e) => setFormData({ ...formData, isActive: e.target.checked })}
+                          className="rounded"
+                        />
+                      </Label>
+                    </div>
+                  </div>
+
+                  <div>
+                    <Label className="text-sm font-medium">
+                      ویژگی‌ها و امکانات
+                    </Label>
+                    <div className="mt-2 space-y-2">
+                      {formData.features.map((feature, index) => (
+                        <div key={index} className="flex gap-2">
+                          <Input
+                            value={feature}
+                            onChange={(e) => {
+                              const newFeatures = [...formData.features];
+                              newFeatures[index] = e.target.value;
+                              setFormData({ ...formData, features: newFeatures });
+                            }}
+                            placeholder={`ویژگی ${index + 1}`}
+                          />
+                          {formData.features.length > 1 && (
+                            <Button
+                              type="button"
+                              variant="destructive"
+                              size="sm"
+                              onClick={() => {
+                                const newFeatures = formData.features.filter((_, i) => i !== index);
+                                setFormData({ ...formData, features: newFeatures });
+                              }}
+                            >
+                              <X className="h-4 w-4" />
+                            </Button>
+                          )}
+                        </div>
+                      ))}
+                      <Button
+                        type="button"
+                        variant="outline"
+                        size="sm"
+                        onClick={() => setFormData({ ...formData, features: [...formData.features, ""] })}
+                        className="mt-2"
+                      >
+                        <Plus className="h-4 w-4 ml-2" />
+                        اضافه ویژگی
+                      </Button>
+                    </div>
                   </div>
                 </div>
 
                 <div className="space-y-4">
                   <div>
-                    <Label className="text-sm font-medium">تصویر اشتراک</Label>
-                    <div className="mt-2">
-                      {imagePreview ? (
-                        <div className="relative">
-                          <img
-                            src={imagePreview}
-                            alt="پیش‌نمایش"
-                            className="w-full h-48 object-cover rounded-lg border-2 border-dashed border-gray-300"
-                          />
-                          <Button
-                            type="button"
-                            variant="destructive"
-                            size="sm"
-                            className="absolute top-2 left-2"
-                            onClick={() => removeImage()}
-                          >
-                            <X className="h-4 w-4" />
-                          </Button>
-                        </div>
-                      ) : (
-                        <label className="relative block border-2 border-dashed border-gray-300 rounded-lg p-6 text-center hover:border-gray-400 transition-colors cursor-pointer">
-                          <ImageIcon className="mx-auto h-12 w-12 text-gray-400" />
-                          <p className="mt-2 text-sm text-gray-600">
-                            برای آپلود تصویر کلیک کنید
-                          </p>
-                          <p className="text-xs text-gray-500 mt-1">
-                            JPG, PNG, GIF, WEBP (حداکثر ۵MB)
-                          </p>
-                          <input
-                            type="file"
-                            accept="image/*"
-                            onChange={(e) => handleImageChange(e)}
-                            className="absolute inset-0 w-full h-full opacity-0 cursor-pointer"
-                          />
-                        </label>
-                      )}
-                    </div>
+                    <Label htmlFor="imageUrl" className="text-sm font-medium">
+                      لینک تصویر اشتراک
+                    </Label>
+                    <Input
+                      id="imageUrl"
+                      type="url"
+                      value={formData.imageUrl}
+                      onChange={(e) => setFormData({ ...formData, imageUrl: e.target.value })}
+                      placeholder="https://example.com/image.jpg"
+                      className="mt-1"
+                    />
+                    {formData.imageUrl && (
+                      <div className="mt-2">
+                        <img
+                          src={formData.imageUrl}
+                          alt="پیش‌نمایش"
+                          className="w-full h-48 object-cover rounded-lg border"
+                          onError={(e) => {
+                            (e.target as HTMLImageElement).style.display = 'none';
+                          }}
+                        />
+                      </div>
+                    )}
                   </div>
                 </div>
               </div>
@@ -436,7 +499,58 @@ export default function Subscriptions() {
                         {subscription.description || "توضیحاتی ارائه نشده است"}
                       </p>
 
-                      <div className="flex items-center justify-between text-xs text-muted-foreground">
+                      {/* Price Display */}
+                      <div className="flex items-center gap-2 mb-2">
+                        {subscription.priceAfterDiscount ? (
+                          <>
+                            <span className="text-lg font-bold text-green-600">
+                              {parseInt(subscription.priceAfterDiscount).toLocaleString('fa-IR')} تومان
+                            </span>
+                            <span className="text-sm line-through text-muted-foreground">
+                              {parseInt(subscription.priceBeforeDiscount || '0').toLocaleString('fa-IR')} تومان
+                            </span>
+                          </>
+                        ) : subscription.priceBeforeDiscount ? (
+                          <span className="text-lg font-bold text-primary">
+                            {parseInt(subscription.priceBeforeDiscount).toLocaleString('fa-IR')} تومان
+                          </span>
+                        ) : (
+                          <span className="text-lg font-bold text-primary">رایگان</span>
+                        )}
+                        <Badge variant="secondary" className="text-xs">
+                          {subscription.duration === 'monthly' ? 'ماهانه' : 'سالانه'}
+                        </Badge>
+                      </div>
+
+                      {/* Features */}
+                      {subscription.features && subscription.features.length > 0 && subscription.features[0] && (
+                        <div className="mb-2">
+                          <div className="text-xs text-muted-foreground mb-1">ویژگی‌ها:</div>
+                          <div className="flex flex-wrap gap-1">
+                            {subscription.features.slice(0, 3).map((feature: string, index: number) => (
+                              feature && (
+                                <Badge key={index} variant="outline" className="text-xs">
+                                  {feature}
+                                </Badge>
+                              )
+                            ))}
+                            {subscription.features.length > 3 && (
+                              <Badge variant="outline" className="text-xs">
+                                +{subscription.features.length - 3} مورد دیگر
+                              </Badge>
+                            )}
+                          </div>
+                        </div>
+                      )}
+
+                      {/* Status */}
+                      <div className="flex items-center gap-2 mb-2">
+                        <Badge variant={subscription.isActive ? "default" : "secondary"}>
+                          {subscription.isActive ? 'فعال' : 'غیرفعال'}
+                        </Badge>
+                      </div>
+
+                      <div className="flex items-center justify-between text-xs text-muted-foreground pt-2 border-t">
                         <span>
                           {subscription.createdAt ? 
                             new Date(subscription.createdAt).toLocaleDateString('fa-IR') : 
@@ -502,51 +616,82 @@ export default function Subscriptions() {
                         id="editDescription"
                         name="description"
                         defaultValue={editingSubscription.description || ""}
-                        rows={4}
+                        rows={3}
                         className="mt-1"
                       />
+                    </div>
+
+                    <div className="grid grid-cols-2 gap-4">
+                      <div>
+                        <Label htmlFor="editPriceBeforeDiscount" className="text-sm font-medium">
+                          قیمت قبل تخفیف (تومان)
+                        </Label>
+                        <Input
+                          id="editPriceBeforeDiscount"
+                          name="priceBeforeDiscount"
+                          type="number"
+                          defaultValue={editingSubscription.priceBeforeDiscount || ""}
+                          className="mt-1"
+                        />
+                      </div>
+                      
+                      <div>
+                        <Label htmlFor="editPriceAfterDiscount" className="text-sm font-medium">
+                          قیمت بعد تخفیف (تومان)
+                        </Label>
+                        <Input
+                          id="editPriceAfterDiscount"
+                          name="priceAfterDiscount"
+                          type="number"
+                          defaultValue={editingSubscription.priceAfterDiscount || ""}
+                          className="mt-1"
+                        />
+                      </div>
+                    </div>
+
+                    <div className="grid grid-cols-2 gap-4">
+                      <div>
+                        <Label htmlFor="editDuration" className="text-sm font-medium">
+                          مدت زمان اشتراک
+                        </Label>
+                        <Select name="duration" defaultValue={editingSubscription.duration || "monthly"}>
+                          <SelectTrigger className="mt-1">
+                            <SelectValue />
+                          </SelectTrigger>
+                          <SelectContent>
+                            <SelectItem value="monthly">ماهانه</SelectItem>
+                            <SelectItem value="yearly">سالانه</SelectItem>
+                          </SelectContent>
+                        </Select>
+                      </div>
+
+                      <div>
+                        <Label className="text-sm font-medium flex items-center gap-2">
+                          وضعیت فعال
+                          <input
+                            type="checkbox"
+                            name="isActive"
+                            defaultChecked={editingSubscription.isActive !== false}
+                            className="rounded"
+                          />
+                        </Label>
+                      </div>
                     </div>
                   </div>
 
                   <div className="space-y-4">
                     <div>
-                      <Label className="text-sm font-medium">تصویر اشتراک</Label>
-                      <div className="mt-2">
-                        {editImagePreview ? (
-                          <div className="relative">
-                            <img
-                              src={editImagePreview}
-                              alt="پیش‌نمایش"
-                              className="w-full h-48 object-cover rounded-lg border-2 border-dashed border-gray-300"
-                            />
-                            <Button
-                              type="button"
-                              variant="destructive"
-                              size="sm"
-                              className="absolute top-2 left-2"
-                              onClick={() => removeImage(true)}
-                            >
-                              <X className="h-4 w-4" />
-                            </Button>
-                          </div>
-                        ) : (
-                          <label className="relative block border-2 border-dashed border-gray-300 rounded-lg p-6 text-center hover:border-gray-400 transition-colors cursor-pointer">
-                            <ImageIcon className="mx-auto h-12 w-12 text-gray-400" />
-                            <p className="mt-2 text-sm text-gray-600">
-                              برای آپلود تصویر کلیک کنید
-                            </p>
-                            <p className="text-xs text-gray-500 mt-1">
-                              JPG, PNG, GIF, WEBP (حداکثر ۵MB)
-                            </p>
-                            <input
-                              type="file"
-                              accept="image/*"
-                              onChange={(e) => handleImageChange(e, true)}
-                              className="absolute inset-0 w-full h-full opacity-0 cursor-pointer"
-                            />
-                          </label>
-                        )}
-                      </div>
+                      <Label htmlFor="editImageUrl" className="text-sm font-medium">
+                        لینک تصویر اشتراک
+                      </Label>
+                      <Input
+                        id="editImageUrl"
+                        name="imageUrl"
+                        type="url"
+                        defaultValue={editingSubscription.image || ""}
+                        placeholder="https://example.com/image.jpg"
+                        className="mt-1"
+                      />
                     </div>
                   </div>
                 </div>

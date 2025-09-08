@@ -38,6 +38,11 @@ export const subscriptions = pgTable("subscriptions", {
   description: text("description"),
   image: text("image"),
   userLevel: text("user_level").notNull(), // user_level_1, user_level_2
+  priceBeforeDiscount: decimal("price_before_discount", { precision: 10, scale: 2 }),
+  priceAfterDiscount: decimal("price_after_discount", { precision: 10, scale: 2 }),
+  duration: text("duration").notNull().default("monthly"), // monthly, yearly
+  features: text("features").array().default([]),
+  isActive: boolean("is_active").notNull().default(true),
   createdAt: timestamp("created_at").defaultNow(),
 });
 

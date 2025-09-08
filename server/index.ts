@@ -4,7 +4,14 @@ import { setupVite, serveStatic, log } from "./vite";
 import { whatsAppMessageService } from "./whatsapp-service";
 
 const app = express();
-app.use(express.json());
+// JSON parsing middleware - با بررسی content-type  
+app.use((req, res, next) => {
+  if (req.headers['content-type']?.startsWith('multipart/form-data')) {
+    // برای multipart requests، JSON parsing را نادیده می‌گیریم
+    return next();
+  }
+  express.json()(req, res, next);
+});
 app.use(express.urlencoded({ extended: false }));
 
 app.use((req, res, next) => {
