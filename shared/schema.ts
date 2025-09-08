@@ -36,6 +36,7 @@ export const subscriptions = pgTable("subscriptions", {
   id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
   name: text("name").notNull(),
   description: text("description"),
+  image: text("image"),
   userLevel: text("user_level").notNull(), // user_level_1, user_level_2
   createdAt: timestamp("created_at").defaultNow(),
 });

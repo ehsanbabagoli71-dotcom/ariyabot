@@ -321,9 +321,12 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
-  app.post("/api/subscriptions", authenticateToken, requireAdmin, async (req, res) => {
+  app.post("/api/subscriptions", authenticateToken, requireAdmin, upload.single("subscriptionImage"), async (req, res) => {
     try {
-      const validatedData = insertSubscriptionSchema.parse(req.body);
+      const validatedData = insertSubscriptionSchema.parse({
+        ...req.body,
+        image: (req as any).file ? `/uploads/${(req as any).file.filename}` : null,
+      });
       const subscription = await storage.createSubscription(validatedData);
       res.json(subscription);
     } catch (error) {
@@ -334,10 +337,13 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
-  app.put("/api/subscriptions/:id", authenticateToken, requireAdmin, async (req, res) => {
+  app.put("/api/subscriptions/:id", authenticateToken, requireAdmin, upload.single("subscriptionImage"), async (req, res) => {
     try {
       const { id } = req.params;
-      const updates = req.body;
+      const updates = {
+        ...req.body,
+        ...(req as any).file ? { image: `/uploads/${(req as any).file.filename}` } : {},
+      };
       
       const subscription = await storage.updateSubscription(id, updates);
       if (!subscription) {

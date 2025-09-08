@@ -131,62 +131,7 @@ export default function WhatsappSettings() {
     <DashboardLayout title="تنظیمات واتس‌اپ">
       <div className="space-y-4" data-testid="page-whatsapp-settings">
         
-        {/* Header */}
-        <div className="flex items-center justify-between">
-          <div className="flex items-center space-x-3 space-x-reverse">
-            <div className="p-2 bg-green-100 rounded-lg">
-              <MessageCircle className="w-5 h-5 text-green-600" />
-            </div>
-            <div>
-              <h1 className="text-xl font-semibold">تنظیمات واتس‌اپ</h1>
-              <p className="text-sm text-muted-foreground">پیکربندی ادغام واتس‌اپ بیزینس</p>
-            </div>
-          </div>
-          <Badge variant={formData.isEnabled ? "default" : "secondary"}>
-            {formData.isEnabled ? "فعال" : "غیرفعال"}
-          </Badge>
-        </div>
 
-        {/* Quick Stats */}
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-          <Card className="p-3">
-            <div className="flex items-center space-x-2 space-x-reverse">
-              {formData.isEnabled ? 
-                <CheckCircle2 className="w-4 h-4 text-green-600" /> :
-                <XCircle className="w-4 h-4 text-red-600" />
-              }
-              <div>
-                <p className="text-xs text-muted-foreground">وضعیت</p>
-                <p className="text-sm font-medium">{formData.isEnabled ? 'فعال' : 'غیرفعال'}</p>
-              </div>
-            </div>
-          </Card>
-
-          <Card className="p-3">
-            <div className="flex items-center space-x-2 space-x-reverse">
-              <Activity className="w-4 h-4 text-blue-600" />
-              <div>
-                <p className="text-xs text-muted-foreground">آخرین بررسی</p>
-                <p className="text-sm font-medium">
-                  {new Date().toLocaleTimeString('fa-IR', { 
-                    hour: '2-digit', 
-                    minute: '2-digit' 
-                  })}
-                </p>
-              </div>
-            </div>
-          </Card>
-
-          <Card className="p-3">
-            <div className="flex items-center space-x-2 space-x-reverse">
-              <Bell className="w-4 h-4 text-purple-600" />
-              <div>
-                <p className="text-xs text-muted-foreground">اعلان‌های فعال</p>
-                <p className="text-sm font-medium">{formData.notifications.length} مورد</p>
-              </div>
-            </div>
-          </Card>
-        </div>
 
         {/* Main Form */}
         <Card>
@@ -297,35 +242,6 @@ export default function WhatsappSettings() {
           </CardContent>
         </Card>
 
-        {/* Status Card */}
-        <Card className="bg-gray-900 text-white">
-          <CardHeader className="pb-2">
-            <CardTitle className="text-sm flex items-center space-x-2 space-x-reverse">
-              <div className="w-2 h-2 bg-green-400 rounded-full animate-pulse"></div>
-              <span>وضعیت لایو</span>
-            </CardTitle>
-          </CardHeader>
-          <CardContent>
-            <div className="grid grid-cols-2 md:grid-cols-4 gap-3 text-xs">
-              <div>
-                <p className="text-gray-400">وضعیت:</p>
-                <p className="font-medium">{formData.isEnabled ? "متصل" : "قطع"}</p>
-              </div>
-              <div>
-                <p className="text-gray-400">اعلان‌ها:</p>
-                <p className="font-medium">{formData.notifications.length}</p>
-              </div>
-              <div>
-                <p className="text-gray-400">API:</p>
-                <p className="font-medium">WhatsiPlus</p>
-              </div>
-              <div>
-                <p className="text-gray-400">بروزرسانی:</p>
-                <p className="font-medium">{new Date().toLocaleTimeString('fa-IR', { hour: '2-digit', minute: '2-digit' })}</p>
-              </div>
-            </div>
-          </CardContent>
-        </Card>
       </div>
     </DashboardLayout>
   );

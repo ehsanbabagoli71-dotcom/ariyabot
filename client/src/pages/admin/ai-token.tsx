@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { DashboardLayout } from "@/components/dashboard-layout";
 import { Button } from "@/components/ui/button";
@@ -57,37 +57,75 @@ export default function AITokenSettings() {
     },
   });
 
+  const statusMutation = useMutation({
+    mutationFn: async (isActiveStatus: boolean) => {
+      const response = await createAuthenticatedRequest("/api/ai-token", {
+        method: "POST",
+        body: JSON.stringify({ token: aiTokenData?.token || token, isActive: isActiveStatus }),
+      });
+      if (!response.ok) throw new Error("خطا در تغییر وضعیت");
+      return response.json();
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["/api/ai-token"] });
+      toast({
+        title: "موفقیت",
+        description: `هوش مصنوعی ${isActive ? 'فعال' : 'غیرفعال'} شد`,
+      });
+    },
+    onError: (error, variables) => {
+      setIsActive(!variables); // برگرداندن وضعیت قبلی در صورت خطا
+      toast({
+        title: "خطا",
+        description: "خطا در تغییر وضعیت هوش مصنوعی",
+        variant: "destructive",
+      });
+    },
+  });
+
   const handleSaveToken = (e: React.FormEvent) => {
     e.preventDefault();
     saveTokenMutation.mutate({ token, isActive });
   };
 
+  const handleToggleStatus = (checked: boolean) => {
+    setIsActive(checked);
+    statusMutation.mutate(checked);
+  };
+
   // Set token and status when data is loaded
-  useState(() => {
-    if (aiTokenData?.token && !token) {
+  useEffect(() => {
+    if (aiTokenData?.token) {
       setToken(aiTokenData.token);
     }
     if (aiTokenData?.isActive !== undefined) {
       setIsActive(aiTokenData.isActive);
     }
-  });
+  }, [aiTokenData]);
 
   return (
     <DashboardLayout title="توکن هوش مصنوعی">
       <div className="space-y-6" data-testid="page-ai-token">
-        <div className="flex items-center">
-          <Bot className="w-8 h-8 ml-3 text-primary" />
-          <div>
-            <h2 className="text-2xl font-bold text-foreground">توکن هوش مصنوعی</h2>
-            <p className="text-muted-foreground">مدیریت کلید API برای سرویس‌های هوش مصنوعی</p>
-          </div>
-        </div>
 
         <Card>
           <CardHeader>
-            <CardTitle className="flex items-center">
-              <Key className="w-5 h-5 ml-2" />
-              تنظیمات توکن
+            <CardTitle className="flex items-center justify-between">
+              <div className="flex items-center">
+                <Key className="w-5 h-5 ml-2" />
+                تنظیمات توکن
+              </div>
+              <div className="flex items-center gap-2" dir="ltr">
+                <Switch
+                  id="ai-status"
+                  checked={isActive}
+                  onCheckedChange={handleToggleStatus}
+                  data-testid="switch-ai-status"
+                  className="data-[state=checked]:bg-primary [&>span]:data-[state=checked]:translate-x-5 [&>span]:data-[state=unchecked]:translate-x-0"
+                />
+                <Label htmlFor="ai-status" className="text-sm text-muted-foreground" dir="rtl">
+                  {isActive ? "فعال" : "غیرفعال"}
+                </Label>
+              </div>
             </CardTitle>
             <CardDescription>
               توکن API را برای اتصال به سرویس‌های هوش مصنوعی وارد کنید
@@ -123,34 +161,7 @@ export default function AITokenSettings() {
                   </div>
                 </div>
 
-                <div className="space-y-2">
-                  <Label htmlFor="ai-status" className="flex items-center gap-2">
-                    <Power className="w-4 h-4" />
-                    وضعیت هوش مصنوعی
-                  </Label>
-                  <div className="flex items-center space-x-2 space-x-reverse">
-                    <Switch
-                      id="ai-status"
-                      checked={isActive}
-                      onCheckedChange={setIsActive}
-                      data-testid="switch-ai-status"
-                    />
-                    <Label htmlFor="ai-status" className="text-sm text-muted-foreground">
-                      {isActive ? "فعال" : "غیرفعال"}
-                    </Label>
-                  </div>
-                  <p className="text-xs text-muted-foreground">
-                    در صورت غیرفعال بودن، سیستم به پیام‌های واتس‌اپ پاسخ خودکار نخواهد داد
-                  </p>
-                </div>
 
-                <Alert>
-                  <Bot className="h-4 w-4" />
-                  <AlertDescription>
-                    این توکن برای تمام درخواست‌های مربوط به هوش مصنوعی در سیستم استفاده خواهد شد. 
-                    لطفاً مطمئن شوید که توکن معتبر و دارای دسترسی‌های لازم است.
-                  </AlertDescription>
-                </Alert>
 
                 <div className="flex justify-end">
                   <Button
@@ -168,19 +179,6 @@ export default function AITokenSettings() {
           </CardContent>
         </Card>
 
-        <Card>
-          <CardHeader>
-            <CardTitle>راهنمای استفاده</CardTitle>
-          </CardHeader>
-          <CardContent className="space-y-3">
-            <div className="text-sm text-muted-foreground space-y-2">
-              <p><strong>OpenAI:</strong> برای دریافت توکن از <code>platform.openai.com</code> استفاده کنید</p>
-              <p><strong>Claude:</strong> برای دریافت توکن از <code>console.anthropic.com</code> استفاده کنید</p>
-              <p><strong>امنیت:</strong> توکن خود را با هیچ کس به اشتراک نگذارید</p>
-              <p><strong>دقت:</strong> تغییر توکن بر روی تمام قابلیت‌های هوش مصنوعی سیستم تأثیر می‌گذارد</p>
-            </div>
-          </CardContent>
-        </Card>
       </div>
     </DashboardLayout>
   );
