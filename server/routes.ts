@@ -12,8 +12,22 @@ import { z } from "zod";
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 
-// JWT secret
-const JWT_SECRET = process.env.JWT_SECRET || "your-secret-key";
+// JWT secret initialization
+import crypto from 'crypto';
+
+let jwtSecret: string;
+if (process.env.JWT_SECRET) {
+  jwtSecret = process.env.JWT_SECRET;
+} else {
+  if (process.env.NODE_ENV === 'production') {
+    console.error("🛑 JWT_SECRET environment variable is required in production!");
+    console.error("💡 Set JWT_SECRET to a random 32+ character string");
+    process.exit(1);
+  } else {
+    console.warn("🔧 DEV MODE: Using temporary random JWT secret - set JWT_SECRET env var");
+    jwtSecret = crypto.randomBytes(32).toString('hex');
+  }
+}
 
 // Multer configuration for file uploads
 const storage_config = multer.diskStorage({
@@ -53,7 +67,7 @@ const authenticateToken = async (req: AuthRequest, res: Response, next: NextFunc
   }
 
   try {
-    const decoded = jwt.verify(token, JWT_SECRET) as { userId: string };
+    const decoded = jwt.verify(token, jwtSecret) as { userId: string };
     const user = await storage.getUser(decoded.userId);
     if (!user) {
       return res.status(401).json({ message: "کاربر یافت نشد" });
@@ -109,48 +123,36 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
       // Create 7-day free trial subscription for new users
       try {
-        // First, ensure we have a trial subscription plan
+        // Find the default free subscription plan
         let trialSubscription = (await storage.getAllSubscriptions()).find(sub => 
-          sub.name.includes('رایگان') || sub.name.includes('آزمایشی') || 
-          (sub.priceBeforeDiscount === '0' || !sub.priceBeforeDiscount)
+          sub.isDefault === true
         );
 
-        // If no trial subscription exists, create one
+        // If no default subscription exists, this should not happen
+        // The system should have created a default subscription during initialization
         if (!trialSubscription) {
-          trialSubscription = await storage.createSubscription({
-            name: "اشتراک آزمایشی رایگان",
-            description: "اشتراک رایگان 7 روزه برای کاربران جدید",
-            duration: "monthly",
-            priceBeforeDiscount: "0",
-            priceAfterDiscount: null,
-            features: [
-              "دسترسی محدود به امکانات",
-              "پشتیبانی پایه",
-              "7 روز استفاده رایگان"
-            ],
-            userLevel: "user",
-            isActive: true,
-            image: null,
+          console.warn("⚠️ Default subscription not found - this should not happen");
+          console.warn("Continuing without creating subscription for user:", user.id);
+        } else {
+          // Create user subscription for 7-day trial
+          await storage.createUserSubscription({
+            userId: user.id,
+            subscriptionId: trialSubscription.id,
+            remainingDays: 7,
+            startDate: new Date(),
+            endDate: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000), // 7 days from now
+            status: "active",
+            isTrialPeriod: true,
           });
+          console.log("✅ Created 7-day trial subscription for registered user:", user.id);
         }
-
-        // Create user subscription for 7-day trial
-        await storage.createUserSubscription({
-          userId: user.id,
-          subscriptionId: trialSubscription.id,
-          remainingDays: 7,
-          startDate: new Date(),
-          endDate: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000), // 7 days from now
-          status: "active",
-          isTrialPeriod: true,
-        });
       } catch (trialError) {
         console.error("خطا در ایجاد اشتراک آزمایشی:", trialError);
         // Don't fail user registration if trial subscription creation fails
       }
 
       // Generate JWT
-      const token = jwt.sign({ userId: user.id }, JWT_SECRET, { expiresIn: "7d" });
+      const token = jwt.sign({ userId: user.id }, jwtSecret, { expiresIn: "7d" });
 
       res.json({ 
         user: { ...user, password: undefined },
@@ -178,7 +180,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
         return res.status(401).json({ message: "نام کاربری/ایمیل یا رمز عبور اشتباه است" });
       }
 
-      const token = jwt.sign({ userId: user.id }, JWT_SECRET, { expiresIn: "7d" });
+      const token = jwt.sign({ userId: user.id }, jwtSecret, { expiresIn: "7d" });
 
       res.json({ 
         user: { ...user, password: undefined },
@@ -197,7 +199,43 @@ export async function registerRoutes(app: Express): Promise<Server> {
   app.get("/api/users", authenticateToken, requireAdmin, async (req, res) => {
     try {
       const users = await storage.getAllUsers();
-      res.json(users.map(user => ({ ...user, password: undefined })));
+      
+      // Get subscription data for each user
+      const usersWithSubscriptions = await Promise.all(
+        users.map(async (user) => {
+          try {
+            // Get user's active subscription
+            const userSubscription = await storage.getUserSubscription(user.id);
+            
+            let subscriptionInfo = null;
+            if (userSubscription) {
+              // Get subscription details
+              const subscription = await storage.getSubscription(userSubscription.subscriptionId);
+              subscriptionInfo = {
+                name: subscription?.name || 'نامشخص',
+                remainingDays: userSubscription.remainingDays,
+                status: userSubscription.status,
+                isTrialPeriod: userSubscription.isTrialPeriod
+              };
+            }
+            
+            return {
+              ...user,
+              password: undefined,
+              subscription: subscriptionInfo
+            };
+          } catch (error) {
+            // If there's an error getting subscription data, return user without subscription
+            return {
+              ...user,
+              password: undefined,
+              subscription: null
+            };
+          }
+        })
+      );
+      
+      res.json(usersWithSubscriptions);
     } catch (error) {
       res.status(500).json({ message: "خطا در دریافت کاربران" });
     }
@@ -228,41 +266,29 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
       // Create 7-day free trial subscription for new users created by admin
       try {
-        // First, ensure we have a trial subscription plan
+        // Find the default free subscription plan
         let trialSubscription = (await storage.getAllSubscriptions()).find(sub => 
-          sub.name.includes('رایگان') || sub.name.includes('آزمایشی') || 
-          (sub.priceBeforeDiscount === '0' || !sub.priceBeforeDiscount)
+          sub.isDefault === true
         );
 
-        // If no trial subscription exists, create one
+        // If no default subscription exists, this should not happen
+        // The system should have created a default subscription during initialization
         if (!trialSubscription) {
-          trialSubscription = await storage.createSubscription({
-            name: "اشتراک آزمایشی رایگان",
-            description: "اشتراک رایگان 7 روزه برای کاربران جدید",
-            duration: "monthly",
-            priceBeforeDiscount: "0",
-            priceAfterDiscount: null,
-            features: [
-              "دسترسی محدود به امکانات",
-              "پشتیبانی پایه",
-              "7 روز استفاده رایگان"
-            ],
-            userLevel: "user_level_1",
-            isActive: true,
-            image: null,
+          console.warn("⚠️ Default subscription not found - this should not happen");
+          console.warn("Continuing without creating subscription for user:", user.id);
+        } else {
+          // Create user subscription for 7-day trial
+          await storage.createUserSubscription({
+            userId: user.id,
+            subscriptionId: trialSubscription.id,
+            remainingDays: 7,
+            startDate: new Date(),
+            endDate: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000), // 7 days from now
+            status: "active",
+            isTrialPeriod: true,
           });
+          console.log("✅ Created 7-day trial subscription for admin-created user:", user.id);
         }
-
-        // Create user subscription for 7-day trial
-        await storage.createUserSubscription({
-          userId: user.id,
-          subscriptionId: trialSubscription.id,
-          remainingDays: 7,
-          startDate: new Date(),
-          endDate: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000), // 7 days from now
-          status: "active",
-          isTrialPeriod: true,
-        });
       } catch (trialError) {
         console.error("خطا در ایجاد اشتراک آزمایشی:", trialError);
         // Don't fail user creation if trial subscription creation fails
@@ -446,7 +472,14 @@ export async function registerRoutes(app: Express): Promise<Server> {
   app.post("/api/subscriptions", authenticateToken, requireAdmin, async (req, res) => {
     try {
       const validatedData = insertSubscriptionSchema.parse(req.body);
-      const subscription = await storage.createSubscription(validatedData);
+      
+      // Note: insertSubscriptionSchema already omits isDefault, so this check is not needed
+      // but we keep it for safety
+      
+      // Force isDefault to false for all user-created subscriptions
+      const safeData = { ...validatedData, isDefault: false };
+      
+      const subscription = await storage.createSubscription(safeData);
       res.json(subscription);
     } catch (error) {
       console.error("خطا در ایجاد اشتراک:", error);
@@ -461,6 +494,26 @@ export async function registerRoutes(app: Express): Promise<Server> {
     try {
       const { id } = req.params;
       const updates = req.body;
+      
+      // Get current subscription to check if it's the default free subscription
+      const currentSubscription = await storage.getSubscription(id);
+      if (!currentSubscription) {
+        return res.status(404).json({ message: "اشتراک یافت نشد" });
+      }
+      
+      // Prevent ANY modifications to default subscription (complete immutability)
+      if (currentSubscription.isDefault) {
+        return res.status(400).json({ 
+          message: "امکان تغییر اشتراک پیش فرض رایگان وجود ندارد" 
+        });
+      } else {
+        // Prevent setting isDefault=true on non-default subscriptions
+        if (updates.isDefault === true) {
+          return res.status(400).json({ 
+            message: "تنها یک اشتراک پیش فرض می تواند وجود داشته باشد" 
+          });
+        }
+      }
       
       const subscription = await storage.updateSubscription(id, updates);
       if (!subscription) {
@@ -477,6 +530,20 @@ export async function registerRoutes(app: Express): Promise<Server> {
   app.delete("/api/subscriptions/:id", authenticateToken, requireAdmin, async (req, res) => {
     try {
       const { id } = req.params;
+      
+      // Get subscription details first to check if it's the default free subscription
+      const subscription = await storage.getSubscription(id);
+      if (!subscription) {
+        return res.status(404).json({ message: "اشتراک یافت نشد" });
+      }
+      
+      // Prevent deletion of default subscription
+      if (subscription.isDefault) {
+        return res.status(400).json({ 
+          message: "امکان حذف اشتراک پیش فرض رایگان وجود ندارد" 
+        });
+      }
+      
       const success = await storage.deleteSubscription(id);
       
       if (!success) {
@@ -485,6 +552,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
       res.json({ message: "اشتراک با موفقیت حذف شد" });
     } catch (error) {
+      console.error("Error deleting subscription:", error);
       res.status(500).json({ message: "خطا در حذف اشتراک" });
     }
   });

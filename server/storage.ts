@@ -91,10 +91,21 @@ export class MemStorage implements IStorage {
     
     // Create default admin user
     this.initializeAdminUser();
+    
+    // Create default free subscription
+    this.initializeDefaultSubscription();
   }
 
   private async initializeAdminUser() {
-    const hashedPassword = await bcrypt.hash("232111", 10);
+    // Use environment variable for admin password, fallback to random password
+    const adminPassword = process.env.ADMIN_PASSWORD || this.generateRandomPassword();
+    if (!process.env.ADMIN_PASSWORD) {
+      console.log("🔑 Admin password auto-generated. Username: ehsan");
+      console.log("⚠️  Set ADMIN_PASSWORD environment variable for custom password");
+      console.log("💡 For development: set NODE_ENV=development to see generated password");
+    }
+    
+    const hashedPassword = await bcrypt.hash(adminPassword, 10);
     const adminUser: User = {
       id: randomUUID(),
       username: "ehsan",
@@ -109,6 +120,37 @@ export class MemStorage implements IStorage {
       createdAt: new Date(),
     };
     this.users.set(adminUser.id, adminUser);
+  }
+
+  private generateRandomPassword(): string {
+    const chars = 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789';
+    let password = '';
+    for (let i = 0; i < 12; i++) {
+      password += chars.charAt(Math.floor(Math.random() * chars.length));
+    }
+    return password;
+  }
+
+  private async initializeDefaultSubscription() {
+    const defaultSubscription: Subscription = {
+      id: randomUUID(),
+      name: "اشتراک رایگان",
+      description: "اشتراک پیش‌فرض رایگان 7 روزه",
+      image: null,
+      userLevel: "user_level_1",
+      priceBeforeDiscount: "0",
+      priceAfterDiscount: null,
+      duration: "monthly",
+      features: [
+        "دسترسی پایه به سیستم",
+        "پشتیبانی محدود",
+        "7 روز استفاده رایگان"
+      ],
+      isActive: true,
+      isDefault: true,
+      createdAt: new Date(),
+    };
+    this.subscriptions.set(defaultSubscription.id, defaultSubscription);
   }
 
   // Users
@@ -234,6 +276,7 @@ export class MemStorage implements IStorage {
       priceAfterDiscount: insertSubscription.priceAfterDiscount || null,
       features: insertSubscription.features || null,
       isActive: insertSubscription.isActive !== undefined ? insertSubscription.isActive : true,
+      isDefault: insertSubscription.isDefault !== undefined ? insertSubscription.isDefault : false,
       createdAt: new Date(),
     };
     this.subscriptions.set(id, subscription);

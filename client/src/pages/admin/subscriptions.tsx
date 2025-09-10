@@ -480,7 +480,7 @@ export default function Subscriptions() {
             ) : (
               <div className="grid grid-cols-1 lg:grid-cols-2 xl:grid-cols-3 gap-4">
                 {subscriptions.map((subscription) => {
-                  const isTrialSubscription = subscription.name === "اشتراک ۷ روزه رایگان";
+                  const isTrialSubscription = subscription.isDefault;
                   return (
                   <Card key={subscription.id} className="group hover:shadow-lg transition-all duration-300 border hover:border-primary/30 bg-gradient-to-br from-background to-muted/10">
                     <CardContent className="p-0">

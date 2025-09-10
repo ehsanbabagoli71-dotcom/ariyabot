@@ -43,6 +43,7 @@ export const subscriptions = pgTable("subscriptions", {
   duration: text("duration").notNull().default("monthly"), // monthly, yearly
   features: text("features").array().default([]),
   isActive: boolean("is_active").notNull().default(true),
+  isDefault: boolean("is_default").notNull().default(false),
   createdAt: timestamp("created_at").defaultNow(),
 });
 
@@ -126,6 +127,7 @@ export const insertTicketSchema = createInsertSchema(tickets).omit({
 export const insertSubscriptionSchema = createInsertSchema(subscriptions).omit({
   id: true,
   createdAt: true,
+  isDefault: true, // Prevent clients from setting isDefault
 });
 
 export const insertProductSchema = createInsertSchema(products).omit({

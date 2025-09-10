@@ -6,24 +6,33 @@ import { Input } from "@/components/ui/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Badge } from "@/components/ui/badge";
-import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
 import { Label } from "@/components/ui/label";
-import { Plus, Search, Edit, Trash2, User } from "lucide-react";
+import { Plus, Search, Edit, Trash2 } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { createAuthenticatedRequest } from "@/lib/auth";
 import type { User as UserType } from "@shared/schema";
 
+// Extended user type to include subscription information
+interface UserWithSubscription extends UserType {
+  subscription?: {
+    name: string;
+    remainingDays: number;
+    status: string;
+    isTrialPeriod: boolean;
+  } | null;
+}
+
 export default function UserManagement() {
   const [search, setSearch] = useState("");
   const [roleFilter, setRoleFilter] = useState("all");
-  const [editingUser, setEditingUser] = useState<UserType | null>(null);
+  const [editingUser, setEditingUser] = useState<UserWithSubscription | null>(null);
   const [isEditDialogOpen, setIsEditDialogOpen] = useState(false);
   const [isCreateDialogOpen, setIsCreateDialogOpen] = useState(false);
   const { toast } = useToast();
   const queryClient = useQueryClient();
 
-  const { data: users = [], isLoading } = useQuery<UserType[]>({
+  const { data: users = [], isLoading } = useQuery<UserWithSubscription[]>({
     queryKey: ["/api/users"],
     queryFn: async () => {
       const response = await createAuthenticatedRequest("/api/users");
@@ -131,7 +140,7 @@ export default function UserManagement() {
     }
   };
 
-  const handleEditUser = (user: UserType) => {
+  const handleEditUser = (user: UserWithSubscription) => {
     setEditingUser(user);
     setIsEditDialogOpen(true);
   };
@@ -228,12 +237,13 @@ export default function UserManagement() {
               <Table>
                 <TableHeader>
                   <TableRow className="bg-muted">
-                    <TableHead className="text-right">تصویر</TableHead>
                     <TableHead className="text-right">نام کاربری</TableHead>
                     <TableHead className="text-right">نام</TableHead>
                     <TableHead className="text-right">ایمیل</TableHead>
                     <TableHead className="text-right">شماره تلفن</TableHead>
                     <TableHead className="text-right">نقش</TableHead>
+                    <TableHead className="text-right">نوع اشتراک</TableHead>
+                    <TableHead className="text-right">روزهای باقیمانده</TableHead>
                     <TableHead className="text-right">تاریخ عضویت</TableHead>
                     <TableHead className="text-right">عملیات</TableHead>
                   </TableRow>
@@ -241,14 +251,6 @@ export default function UserManagement() {
                 <TableBody>
                   {filteredUsers.map((user) => (
                     <TableRow key={user.id} className="hover:bg-muted/50 transition-colors" data-testid={`row-user-${user.id}`}>
-                      <TableCell>
-                        <Avatar data-testid={`img-user-${user.id}`}>
-                          <AvatarImage src={user.profilePicture || undefined} />
-                          <AvatarFallback>
-                            <User className="h-4 w-4" />
-                          </AvatarFallback>
-                        </Avatar>
-                      </TableCell>
                       <TableCell className="font-medium" data-testid={`text-user-username-${user.id}`}>
                         {user.username || '-'}
                       </TableCell>
@@ -263,6 +265,30 @@ export default function UserManagement() {
                       </TableCell>
                       <TableCell data-testid={`badge-user-role-${user.id}`}>
                         {getRoleBadge(user.role)}
+                      </TableCell>
+                      <TableCell className="text-muted-foreground" data-testid={`text-user-subscription-${user.id}`}>
+                        {user.subscription ? (
+                          <div className="flex items-center space-x-2 space-x-reverse">
+                            <span>{user.subscription.name}</span>
+                            {user.subscription.isTrialPeriod && (
+                              <Badge variant="secondary" className="text-xs">آزمایشی</Badge>
+                            )}
+                          </div>
+                        ) : (
+                          <span className="text-muted-foreground">بدون اشتراک</span>
+                        )}
+                      </TableCell>
+                      <TableCell className="text-muted-foreground" data-testid={`text-user-remaining-days-${user.id}`}>
+                        {user.subscription ? (
+                          <div className="flex items-center space-x-1 space-x-reverse">
+                            <span className={user.subscription.remainingDays <= 3 ? "text-destructive font-medium" : user.subscription.remainingDays <= 7 ? "text-orange-500 font-medium" : ""}>
+                              {user.subscription.remainingDays}
+                            </span>
+                            <span className="text-xs text-muted-foreground">روز</span>
+                          </div>
+                        ) : (
+                          <span className="text-muted-foreground">-</span>
+                        )}
                       </TableCell>
                       <TableCell className="text-muted-foreground" data-testid={`text-user-created-${user.id}`}>
                         {user.createdAt ? new Date(user.createdAt).toLocaleDateString('fa-IR') : '-'}

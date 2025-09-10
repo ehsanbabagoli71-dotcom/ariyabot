@@ -1,6 +1,6 @@
 import { Pool } from "pg";
 import { drizzle } from "drizzle-orm/node-postgres";
-import { eq, sql, desc } from "drizzle-orm";
+import { eq, sql, desc, and, gte } from "drizzle-orm";
 import { users, tickets, subscriptions, products, whatsappSettings, sentMessages, receivedMessages, aiTokenSettings, userSubscriptions } from "@shared/schema";
 import { type User, type InsertUser, type Ticket, type InsertTicket, type Subscription, type InsertSubscription, type Product, type InsertProduct, type WhatsappSettings, type InsertWhatsappSettings, type SentMessage, type InsertSentMessage, type ReceivedMessage, type InsertReceivedMessage, type AiTokenSettings, type InsertAiTokenSettings, type UserSubscription, type InsertUserSubscription } from "@shared/schema";
 import { type IStorage } from "./storage";
@@ -20,6 +20,9 @@ export class DbStorage implements IStorage {
   constructor() {
     // Initialize default admin user on startup
     this.initializeAdminUser();
+    
+    // Initialize default free subscription
+    this.initializeDefaultSubscription();
   }
 
   private async initializeAdminUser() {
@@ -32,7 +35,15 @@ export class DbStorage implements IStorage {
         .limit(1);
 
       if (existingAdmin.length === 0) {
-        const hashedPassword = await bcrypt.hash("232111", 10);
+        // Use environment variable for admin password, fallback to random password
+        const adminPassword = process.env.ADMIN_PASSWORD || this.generateRandomPassword();
+        if (!process.env.ADMIN_PASSWORD) {
+          console.log("🔑 Admin password auto-generated. Username: ehsan");
+          console.log("⚠️  Set ADMIN_PASSWORD environment variable for custom password");
+          console.log("💡 For development: set NODE_ENV=development to see generated password");
+        }
+        
+        const hashedPassword = await bcrypt.hash(adminPassword, 10);
         await db.insert(users).values({
           username: "ehsan",
           firstName: "احسان",
@@ -45,6 +56,45 @@ export class DbStorage implements IStorage {
       }
     } catch (error) {
       console.error("Error initializing admin user:", error);
+    }
+  }
+
+  private generateRandomPassword(): string {
+    const chars = 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789';
+    let password = '';
+    for (let i = 0; i < 12; i++) {
+      password += chars.charAt(Math.floor(Math.random() * chars.length));
+    }
+    return password;
+  }
+
+  private async initializeDefaultSubscription() {
+    try {
+      // Check if default free subscription exists
+      const existingSubscription = await db
+        .select()
+        .from(subscriptions)
+        .where(eq(subscriptions.name, "اشتراک رایگان"))
+        .limit(1);
+
+      if (existingSubscription.length === 0) {
+        await db.insert(subscriptions).values({
+          name: "اشتراک رایگان",
+          description: "اشتراک پیش‌فرض رایگان 7 روزه",
+          userLevel: "user_level_1",
+          priceBeforeDiscount: "0",
+          duration: "monthly",
+          features: [
+            "دسترسی پایه به سیستم",
+            "پشتیبانی محدود",
+            "7 روز استفاده رایگان"
+          ],
+          isActive: true,
+          isDefault: true,
+        });
+      }
+    } catch (error) {
+      console.error("Error initializing default subscription:", error);
     }
   }
 
@@ -276,8 +326,12 @@ export class DbStorage implements IStorage {
   // User Subscriptions
   async getUserSubscription(userId: string): Promise<UserSubscription | undefined> {
     const result = await db.select().from(userSubscriptions)
-      .where(eq(userSubscriptions.userId, userId))
-      .orderBy(desc(userSubscriptions.createdAt))
+      .where(and(
+        eq(userSubscriptions.userId, userId),
+        eq(userSubscriptions.status, 'active'),
+        gte(userSubscriptions.endDate, new Date())
+      ))
+      .orderBy(desc(userSubscriptions.endDate))
       .limit(1);
     return result[0];
   }
