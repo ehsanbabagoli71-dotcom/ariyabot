@@ -21,13 +21,13 @@ args = "Start application"
 name = "Start application"
 author = "agent"
 
-[workflows.workflow.metadata]
-outputType = "webview"
-
 [[workflows.workflow.tasks]]
 task = "shell.exec"
-args = "npm run dev"
+args = "ADMIN_PASSWORD=admin123 npm run dev"
 waitForPort = 5000
+
+[workflows.workflow.metadata]
+outputType = "webview"
 
 [[ports]]
 localPort = 5000
@@ -37,7 +37,11 @@ externalPort = 80
 localPort = 34971
 externalPort = 3001
 
+[[ports]]
+localPort = 46019
+externalPort = 3000
+
 [deployment]
 deploymentTarget = "autoscale"
-run = ["npm", "run", "start"]
+run = ["npm", "run"]
 build = ["npm", "run", "build"]
