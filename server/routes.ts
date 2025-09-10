@@ -6,7 +6,7 @@ import jwt from "jsonwebtoken";
 import multer from "multer";
 import path from "path";
 import { fileURLToPath } from "url";
-import { insertUserSchema, insertTicketSchema, insertSubscriptionSchema, insertProductSchema, insertWhatsappSettingsSchema, insertSentMessageSchema, insertReceivedMessageSchema, insertAiTokenSettingsSchema, type User } from "@shared/schema";
+import { insertUserSchema, insertTicketSchema, insertSubscriptionSchema, insertProductSchema, insertWhatsappSettingsSchema, insertSentMessageSchema, insertReceivedMessageSchema, insertAiTokenSettingsSchema, insertUserSubscriptionSchema, type User } from "@shared/schema";
 import { z } from "zod";
 
 const __filename = fileURLToPath(import.meta.url);
@@ -106,6 +106,48 @@ export async function registerRoutes(app: Express): Promise<Server> {
         ...validatedData,
         password: hashedPassword,
       });
+
+      // Create 7-day free trial subscription for new users
+      try {
+        // First, ensure we have a trial subscription plan
+        let trialSubscription = (await storage.getAllSubscriptions()).find(sub => 
+          sub.name.includes('رایگان') || sub.name.includes('آزمایشی') || 
+          (sub.priceBeforeDiscount === '0' || !sub.priceBeforeDiscount)
+        );
+
+        // If no trial subscription exists, create one
+        if (!trialSubscription) {
+          trialSubscription = await storage.createSubscription({
+            name: "اشتراک آزمایشی رایگان",
+            description: "اشتراک رایگان 7 روزه برای کاربران جدید",
+            duration: "monthly",
+            priceBeforeDiscount: "0",
+            priceAfterDiscount: null,
+            features: [
+              "دسترسی محدود به امکانات",
+              "پشتیبانی پایه",
+              "7 روز استفاده رایگان"
+            ],
+            userLevel: "user",
+            isActive: true,
+            image: null,
+          });
+        }
+
+        // Create user subscription for 7-day trial
+        await storage.createUserSubscription({
+          userId: user.id,
+          subscriptionId: trialSubscription.id,
+          remainingDays: 7,
+          startDate: new Date(),
+          endDate: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000), // 7 days from now
+          status: "active",
+          isTrialPeriod: true,
+        });
+      } catch (trialError) {
+        console.error("خطا در ایجاد اشتراک آزمایشی:", trialError);
+        // Don't fail user registration if trial subscription creation fails
+      }
 
       // Generate JWT
       const token = jwt.sign({ userId: user.id }, JWT_SECRET, { expiresIn: "7d" });
@@ -590,6 +632,170 @@ export async function registerRoutes(app: Express): Promise<Server> {
       res.json(message);
     } catch (error) {
       res.status(500).json({ message: "خطا در بروزرسانی وضعیت پیام" });
+    }
+  });
+
+  // User Subscription routes
+  // Get user's current subscription
+  app.get("/api/user-subscriptions/me", authenticateToken, async (req: AuthRequest, res) => {
+    try {
+      const userSubscription = await storage.getUserSubscription(req.user!.id);
+      res.json(userSubscription);
+    } catch (error) {
+      res.status(500).json({ message: "خطا در دریافت اشتراک کاربر" });
+    }
+  });
+
+  // Get all user subscriptions (Admin only)
+  app.get("/api/user-subscriptions", authenticateToken, requireAdmin, async (req, res) => {
+    try {
+      const userSubscriptions = await storage.getAllUserSubscriptions();
+      res.json(userSubscriptions);
+    } catch (error) {
+      res.status(500).json({ message: "خطا در دریافت اشتراک‌های کاربران" });
+    }
+  });
+
+  // Create user subscription
+  app.post("/api/user-subscriptions", authenticateToken, requireAdmin, async (req, res) => {
+    try {
+      const validatedData = insertUserSubscriptionSchema.parse(req.body);
+      const userSubscription = await storage.createUserSubscription(validatedData);
+      res.json(userSubscription);
+    } catch (error) {
+      if (error instanceof z.ZodError) {
+        return res.status(400).json({ message: "داده های ورودی نامعتبر است", errors: error.errors });
+      }
+      res.status(500).json({ message: "خطا در ایجاد اشتراک کاربر" });
+    }
+  });
+
+  // Update user subscription
+  app.put("/api/user-subscriptions/:id", authenticateToken, requireAdmin, async (req, res) => {
+    try {
+      const { id } = req.params;
+      const updates = req.body;
+      
+      const userSubscription = await storage.updateUserSubscription(id, updates);
+      if (!userSubscription) {
+        return res.status(404).json({ message: "اشتراک کاربر یافت نشد" });
+      }
+
+      res.json(userSubscription);
+    } catch (error) {
+      res.status(500).json({ message: "خطا در بروزرسانی اشتراک کاربر" });
+    }
+  });
+
+  // Update remaining days (for daily reduction)
+  app.put("/api/user-subscriptions/:id/remaining-days", authenticateToken, requireAdmin, async (req, res) => {
+    try {
+      const { id } = req.params;
+      const { remainingDays } = req.body;
+      
+      if (typeof remainingDays !== 'number') {
+        return res.status(400).json({ message: "تعداد روزهای باقیمانده باید عدد باشد" });
+      }
+      
+      const userSubscription = await storage.updateRemainingDays(id, remainingDays);
+      if (!userSubscription) {
+        return res.status(404).json({ message: "اشتراک کاربر یافت نشد" });
+      }
+
+      res.json(userSubscription);
+    } catch (error) {
+      res.status(500).json({ message: "خطا در بروزرسانی روزهای باقیمانده" });
+    }
+  });
+
+  // Daily subscription reduction endpoint (for cron job)
+  app.post("/api/user-subscriptions/daily-reduction", authenticateToken, requireAdmin, async (req, res) => {
+    try {
+      const activeSubscriptions = await storage.getActiveUserSubscriptions();
+      const updatedSubscriptions = [];
+      
+      for (const subscription of activeSubscriptions) {
+        if (subscription.remainingDays > 0) {
+          const newRemainingDays = subscription.remainingDays - 1;
+          const updated = await storage.updateRemainingDays(subscription.id, newRemainingDays);
+          if (updated) {
+            updatedSubscriptions.push(updated);
+          }
+        }
+      }
+      
+      res.json({
+        message: `${updatedSubscriptions.length} اشتراک بروزرسانی شد`,
+        updatedSubscriptions
+      });
+    } catch (error) {
+      console.error("خطا در کاهش روزانه اشتراک‌ها:", error);
+      res.status(500).json({ message: "خطا در کاهش روزانه اشتراک‌ها" });
+    }
+  });
+
+  // Get active subscriptions
+  app.get("/api/user-subscriptions/active", authenticateToken, requireAdmin, async (req, res) => {
+    try {
+      const activeSubscriptions = await storage.getActiveUserSubscriptions();
+      res.json(activeSubscriptions);
+    } catch (error) {
+      res.status(500).json({ message: "خطا در دریافت اشتراک‌های فعال" });
+    }
+  });
+
+  // Get expired subscriptions  
+  app.get("/api/user-subscriptions/expired", authenticateToken, requireAdmin, async (req, res) => {
+    try {
+      const expiredSubscriptions = await storage.getExpiredUserSubscriptions();
+      res.json(expiredSubscriptions);
+    } catch (error) {
+      res.status(500).json({ message: "خطا در دریافت اشتراک‌های منقضی" });
+    }
+  });
+
+  // Subscribe to plan endpoint (for users)
+  app.post("/api/user-subscriptions/subscribe", authenticateToken, async (req: AuthRequest, res) => {
+    try {
+      const { subscriptionId } = req.body;
+      
+      if (!subscriptionId) {
+        return res.status(400).json({ message: "شناسه اشتراک مورد نیاز است" });
+      }
+      
+      // Check if subscription exists
+      const subscription = await storage.getSubscription(subscriptionId);
+      if (!subscription) {
+        return res.status(404).json({ message: "اشتراک یافت نشد" });
+      }
+      
+      if (!subscription.isActive) {
+        return res.status(400).json({ message: "این اشتراک فعال نیست" });
+      }
+      
+      // Check if user already has an active subscription
+      const existingSubscription = await storage.getUserSubscription(req.user!.id);
+      if (existingSubscription && existingSubscription.remainingDays > 0) {
+        return res.status(400).json({ message: "شما اشتراک فعال دارید" });
+      }
+      
+      // Calculate duration in days
+      const durationInDays = subscription.duration === 'monthly' ? 30 : 365;
+      
+      // Create new user subscription
+      const userSubscription = await storage.createUserSubscription({
+        userId: req.user!.id,
+        subscriptionId: subscriptionId,
+        remainingDays: durationInDays,
+        startDate: new Date(),
+        endDate: new Date(Date.now() + durationInDays * 24 * 60 * 60 * 1000),
+        status: "active",
+      });
+      
+      res.json(userSubscription);
+    } catch (error) {
+      console.error("خطا در ثبت اشتراک:", error);
+      res.status(500).json({ message: "خطا در ثبت اشتراک" });
     }
   });
 

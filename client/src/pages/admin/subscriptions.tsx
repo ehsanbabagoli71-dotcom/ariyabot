@@ -9,7 +9,8 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
-import { Plus, Edit, Trash2, Upload, Image as ImageIcon, X } from "lucide-react";
+import { Switch } from "@/components/ui/switch";
+import { Plus, Edit, Trash2, Upload, Image as ImageIcon, X, Power, PowerOff, Calendar, DollarSign, Crown, CheckCircle, Clock } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { createAuthenticatedRequest } from "@/lib/auth";
 import type { Subscription } from "@shared/schema";
@@ -144,6 +145,34 @@ export default function Subscriptions() {
     },
   });
 
+  const toggleStatusMutation = useMutation({
+    mutationFn: async ({ id, isActive }: { id: string; isActive: boolean }) => {
+      const response = await createAuthenticatedRequest(`/api/subscriptions/${id}`, {
+        method: "PUT",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({ isActive }),
+      });
+      if (!response.ok) throw new Error("خطا در تغییر وضعیت اشتراک");
+      return response.json();
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["/api/subscriptions"] });
+      toast({
+        title: "✅ موفقیت",
+        description: "وضعیت اشتراک با موفقیت تغییر کرد",
+      });
+    },
+    onError: () => {
+      toast({
+        title: "❌ خطا",
+        description: "خطا در تغییر وضعیت اشتراک",
+        variant: "destructive",
+      });
+    },
+  });
+
 
 
   const handleSubmit = (e: React.FormEvent) => {
@@ -192,6 +221,10 @@ export default function Subscriptions() {
     if (confirm("آیا از حذف این اشتراک اطمینان دارید؟")) {
       deleteMutation.mutate(id);
     }
+  };
+
+  const handleToggleStatus = (id: string, currentStatus: boolean) => {
+    toggleStatusMutation.mutate({ id, isActive: !currentStatus });
   };
 
   const getUserLevelBadge = (userLevel: string) => {
@@ -431,137 +464,189 @@ export default function Subscriptions() {
             <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary"></div>
           </div>
         ) : (
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+          <div className="space-y-6">
             {subscriptions.length === 0 ? (
-              <div className="col-span-full">
-                <Card>
-                  <CardContent className="p-8 text-center">
-                    <ImageIcon className="h-12 w-12 text-muted-foreground mx-auto mb-4" />
-                    <h3 className="text-lg font-medium text-muted-foreground mb-2">
-                      هیچ اشتراکی موجود نیست
-                    </h3>
-                    <p className="text-sm text-muted-foreground">
-                      اولین اشتراک خود را ایجاد کنید
-                    </p>
-                  </CardContent>
-                </Card>
-              </div>
+              <Card>
+                <CardContent className="p-8 text-center">
+                  <Crown className="h-12 w-12 text-muted-foreground mx-auto mb-4" />
+                  <h3 className="text-lg font-medium text-muted-foreground mb-2">
+                    هیچ اشتراکی موجود نیست
+                  </h3>
+                  <p className="text-sm text-muted-foreground">
+                    اولین اشتراک خود را ایجاد کنید
+                  </p>
+                </CardContent>
+              </Card>
             ) : (
-              subscriptions.map((subscription) => (
-                <Card key={subscription.id} className="group hover:shadow-lg transition-all duration-200">
-                  <CardContent className="p-0">
-                    {subscription.image ? (
+              <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+                {subscriptions.map((subscription) => (
+                  <Card key={subscription.id} className="group hover:shadow-xl transition-all duration-300 border-2 hover:border-primary/20 bg-gradient-to-br from-background to-muted/30">
+                    <CardContent className="p-0">
+                      {/* Header with Image and Status Toggle */}
                       <div className="relative">
-                        <img
-                          src={subscription.image}
-                          alt={subscription.name}
-                          className="w-full h-48 object-cover rounded-t-lg"
-                        />
-                        <div className="absolute top-2 right-2">
-                          {getUserLevelBadge(subscription.userLevel)}
-                        </div>
-                      </div>
-                    ) : (
-                      <div className="w-full h-48 bg-gradient-to-br from-gray-100 to-gray-200 rounded-t-lg flex items-center justify-center relative">
-                        <ImageIcon className="h-16 w-16 text-gray-400" />
-                        <div className="absolute top-2 right-2">
-                          {getUserLevelBadge(subscription.userLevel)}
-                        </div>
-                      </div>
-                    )}
-                    
-                    <div className="p-4">
-                      <div className="flex items-start justify-between mb-3">
-                        <h3 className="text-lg font-semibold text-foreground group-hover:text-primary transition-colors">
-                          {subscription.name}
-                        </h3>
-                        <div className="flex items-center gap-1">
-                          <Button
-                            variant="ghost"
-                            size="sm"
-                            onClick={() => handleEdit(subscription)}
-                            className="opacity-0 group-hover:opacity-100 transition-opacity"
-                          >
-                            <Edit className="h-4 w-4" />
-                          </Button>
-                          <Button
-                            variant="ghost"
-                            size="sm"
-                            onClick={() => handleDelete(subscription.id)}
-                            className="opacity-0 group-hover:opacity-100 transition-opacity text-destructive hover:text-destructive/80"
-                          >
-                            <Trash2 className="h-4 w-4" />
-                          </Button>
-                        </div>
-                      </div>
-
-                      <p className="text-sm text-muted-foreground mb-3 line-clamp-2">
-                        {subscription.description || "توضیحاتی ارائه نشده است"}
-                      </p>
-
-                      {/* Price Display */}
-                      <div className="flex items-center gap-2 mb-2">
-                        {subscription.priceAfterDiscount ? (
-                          <>
-                            <span className="text-lg font-bold text-green-600">
-                              {parseInt(subscription.priceAfterDiscount).toLocaleString('fa-IR')} تومان
-                            </span>
-                            <span className="text-sm line-through text-muted-foreground">
-                              {parseInt(subscription.priceBeforeDiscount || '0').toLocaleString('fa-IR')} تومان
-                            </span>
-                          </>
-                        ) : subscription.priceBeforeDiscount ? (
-                          <span className="text-lg font-bold text-primary">
-                            {parseInt(subscription.priceBeforeDiscount).toLocaleString('fa-IR')} تومان
-                          </span>
+                        {subscription.image ? (
+                          <div className="relative">
+                            <img
+                              src={subscription.image}
+                              alt={subscription.name}
+                              className="w-full h-40 object-cover rounded-t-lg"
+                            />
+                            <div className="absolute inset-0 bg-black/20 rounded-t-lg" />
+                          </div>
                         ) : (
-                          <span className="text-lg font-bold text-primary">رایگان</span>
+                          <div className="w-full h-40 bg-gradient-to-br from-primary/10 to-primary/30 rounded-t-lg flex items-center justify-center">
+                            <Crown className="h-16 w-16 text-primary/60" />
+                          </div>
                         )}
-                        <Badge variant="secondary" className="text-xs">
-                          {subscription.duration === 'monthly' ? 'ماهانه' : 'سالانه'}
-                        </Badge>
-                      </div>
+                        
+                        {/* Status Toggle */}
+                        <div className="absolute top-3 left-3">
+                          <div className="flex items-center gap-2 bg-white/90 backdrop-blur-sm rounded-full px-3 py-1.5 border shadow-sm">
+                            <div className="flex items-center gap-2">
+                              {subscription.isActive ? (
+                                <Power className="h-4 w-4 text-green-600" />
+                              ) : (
+                                <PowerOff className="h-4 w-4 text-gray-400" />
+                              )}
+                              <Switch
+                                checked={subscription.isActive}
+                                onCheckedChange={() => handleToggleStatus(subscription.id, subscription.isActive)}
+                                disabled={toggleStatusMutation.isPending}
+                                data-testid={`switch-subscription-${subscription.id}`}
+                              />
+                            </div>
+                          </div>
+                        </div>
 
-                      {/* Features */}
-                      {subscription.features && subscription.features.length > 0 && subscription.features[0] && (
-                        <div className="mb-2">
-                          <div className="text-xs text-muted-foreground mb-1">ویژگی‌ها:</div>
-                          <div className="flex flex-wrap gap-1">
-                            {subscription.features.slice(0, 3).map((feature: string, index: number) => (
-                              feature && (
-                                <Badge key={index} variant="outline" className="text-xs">
-                                  {feature}
-                                </Badge>
-                              )
-                            ))}
-                            {subscription.features.length > 3 && (
-                              <Badge variant="outline" className="text-xs">
-                                +{subscription.features.length - 3} مورد دیگر
+                        {/* User Level Badge */}
+                        <div className="absolute top-3 right-3">
+                          {getUserLevelBadge(subscription.userLevel)}
+                        </div>
+
+                        {/* Action Buttons */}
+                        <div className="absolute bottom-3 right-3 opacity-0 group-hover:opacity-100 transition-opacity">
+                          <div className="flex items-center gap-1">
+                            <Button
+                              variant="secondary"
+                              size="sm"
+                              onClick={() => handleEdit(subscription)}
+                              className="bg-white/90 backdrop-blur-sm hover:bg-white border shadow-sm"
+                              data-testid={`button-edit-${subscription.id}`}
+                            >
+                              <Edit className="h-4 w-4" />
+                            </Button>
+                            <Button
+                              variant="destructive"
+                              size="sm"
+                              onClick={() => handleDelete(subscription.id)}
+                              className="bg-white/90 backdrop-blur-sm hover:bg-red-50 text-red-600 border shadow-sm"
+                              data-testid={`button-delete-${subscription.id}`}
+                            >
+                              <Trash2 className="h-4 w-4" />
+                            </Button>
+                          </div>
+                        </div>
+                      </div>
+                      
+                      {/* Content */}
+                      <div className="p-6">
+                        {/* Title and Status */}
+                        <div className="flex items-start justify-between mb-4">
+                          <div>
+                            <h3 className="text-xl font-bold text-foreground group-hover:text-primary transition-colors mb-1" data-testid={`text-subscription-name-${subscription.id}`}>
+                              {subscription.name}
+                            </h3>
+                            <div className="flex items-center gap-2">
+                              <Badge 
+                                variant={subscription.isActive ? "default" : "secondary"}
+                                className={subscription.isActive ? "bg-green-100 text-green-800 border-green-200" : ""}
+                              >
+                                {subscription.isActive ? (
+                                  <><CheckCircle className="h-3 w-3 ml-1" /> فعال</>
+                                ) : (
+                                  <><X className="h-3 w-3 ml-1" /> غیرفعال</>
+                                )}
                               </Badge>
+                              <Badge variant="outline" className="flex items-center gap-1">
+                                <Calendar className="h-3 w-3" />
+                                {subscription.duration === 'monthly' ? 'ماهانه' : 'سالانه'}
+                              </Badge>
+                            </div>
+                          </div>
+                        </div>
+
+                        {/* Description */}
+                        {subscription.description && (
+                          <p className="text-sm text-muted-foreground mb-4 leading-relaxed" data-testid={`text-description-${subscription.id}`}>
+                            {subscription.description}
+                          </p>
+                        )}
+
+                        {/* Pricing */}
+                        <div className="mb-4 p-3 bg-muted/50 rounded-lg border">
+                          <div className="flex items-center gap-2 mb-1">
+                            <DollarSign className="h-4 w-4 text-primary" />
+                            <span className="text-sm font-medium text-muted-foreground">قیمت:</span>
+                          </div>
+                          <div className="flex items-center gap-3">
+                            {subscription.priceAfterDiscount ? (
+                              <>
+                                <span className="text-lg font-bold text-green-600" data-testid={`text-price-after-${subscription.id}`}>
+                                  {parseInt(subscription.priceAfterDiscount).toLocaleString('fa-IR')} تومان
+                                </span>
+                                <span className="text-sm line-through text-muted-foreground" data-testid={`text-price-before-${subscription.id}`}>
+                                  {parseInt(subscription.priceBeforeDiscount || '0').toLocaleString('fa-IR')} تومان
+                                </span>
+                                <Badge variant="destructive" className="text-xs">
+                                  تخفیف
+                                </Badge>
+                              </>
+                            ) : subscription.priceBeforeDiscount ? (
+                              <span className="text-lg font-bold text-primary" data-testid={`text-price-${subscription.id}`}>
+                                {parseInt(subscription.priceBeforeDiscount).toLocaleString('fa-IR')} تومان
+                              </span>
+                            ) : (
+                              <span className="text-lg font-bold text-primary" data-testid={`text-price-free-${subscription.id}`}>رایگان</span>
                             )}
                           </div>
                         </div>
-                      )}
 
-                      {/* Status */}
-                      <div className="flex items-center gap-2 mb-2">
-                        <Badge variant={subscription.isActive ? "default" : "secondary"}>
-                          {subscription.isActive ? 'فعال' : 'غیرفعال'}
-                        </Badge>
-                      </div>
+                        {/* Features */}
+                        {subscription.features && subscription.features.length > 0 && subscription.features[0] && (
+                          <div className="mb-4">
+                            <div className="flex items-center gap-2 mb-2">
+                              <CheckCircle className="h-4 w-4 text-primary" />
+                              <span className="text-sm font-medium text-muted-foreground">ویژگی‌ها:</span>
+                            </div>
+                            <div className="space-y-1">
+                              {subscription.features.map((feature: string, index: number) => (
+                                feature && (
+                                  <div key={index} className="flex items-center gap-2 text-sm" data-testid={`text-feature-${subscription.id}-${index}`}>
+                                    <div className="w-1.5 h-1.5 bg-primary rounded-full" />
+                                    {feature}
+                                  </div>
+                                )
+                              ))}
+                            </div>
+                          </div>
+                        )}
 
-                      <div className="flex items-center justify-between text-xs text-muted-foreground pt-2 border-t">
-                        <span>
-                          {subscription.createdAt ? 
-                            new Date(subscription.createdAt).toLocaleDateString('fa-IR') : 
-                            '-'
-                          }
-                        </span>
+                        {/* Footer */}
+                        <div className="flex items-center justify-between text-xs text-muted-foreground pt-3 border-t">
+                          <div className="flex items-center gap-1">
+                            <Clock className="h-3 w-3" />
+                            <span data-testid={`text-created-${subscription.id}`}>
+                              {subscription.createdAt ? 
+                                new Date(subscription.createdAt).toLocaleDateString('fa-IR') : 'نامشخص'
+                              }
+                            </span>
+                          </div>
+                        </div>
                       </div>
-                    </div>
-                  </CardContent>
-                </Card>
-              ))
+                    </CardContent>
+                  </Card>
+                ))}
+              </div>
             )}
           </div>
         )}

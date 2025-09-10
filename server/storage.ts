@@ -1,4 +1,4 @@
-import { type User, type InsertUser, type Ticket, type InsertTicket, type Subscription, type InsertSubscription, type Product, type InsertProduct, type WhatsappSettings, type InsertWhatsappSettings, type SentMessage, type InsertSentMessage, type ReceivedMessage, type InsertReceivedMessage, type AiTokenSettings, type InsertAiTokenSettings } from "@shared/schema";
+import { type User, type InsertUser, type Ticket, type InsertTicket, type Subscription, type InsertSubscription, type Product, type InsertProduct, type WhatsappSettings, type InsertWhatsappSettings, type SentMessage, type InsertSentMessage, type ReceivedMessage, type InsertReceivedMessage, type AiTokenSettings, type InsertAiTokenSettings, type UserSubscription, type InsertUserSubscription } from "@shared/schema";
 import { randomUUID } from "crypto";
 import bcrypt from "bcryptjs";
 
@@ -53,6 +53,17 @@ export interface IStorage {
   // AI Token Settings
   getAiTokenSettings(): Promise<AiTokenSettings | undefined>;
   updateAiTokenSettings(settings: InsertAiTokenSettings): Promise<AiTokenSettings>;
+  
+  // User Subscriptions
+  getUserSubscription(userId: string): Promise<UserSubscription | undefined>;
+  getUserSubscriptionById(id: string): Promise<UserSubscription | undefined>;
+  getAllUserSubscriptions(): Promise<UserSubscription[]>;
+  createUserSubscription(userSubscription: InsertUserSubscription): Promise<UserSubscription>;
+  updateUserSubscription(id: string, updates: Partial<UserSubscription>): Promise<UserSubscription | undefined>;
+  deleteUserSubscription(id: string): Promise<boolean>;
+  updateRemainingDays(id: string, remainingDays: number): Promise<UserSubscription | undefined>;
+  getActiveUserSubscriptions(): Promise<UserSubscription[]>;
+  getExpiredUserSubscriptions(): Promise<UserSubscription[]>;
 }
 
 export class MemStorage implements IStorage {
@@ -64,6 +75,7 @@ export class MemStorage implements IStorage {
   private sentMessages: Map<string, SentMessage>;
   private receivedMessages: Map<string, ReceivedMessage>;
   private aiTokenSettings: AiTokenSettings | undefined;
+  private userSubscriptions: Map<string, UserSubscription>;
 
   constructor() {
     this.users = new Map();
@@ -74,6 +86,7 @@ export class MemStorage implements IStorage {
     this.sentMessages = new Map();
     this.receivedMessages = new Map();
     this.aiTokenSettings = undefined;
+    this.userSubscriptions = new Map();
     
     // Create default admin user
     this.initializeAdminUser();
@@ -214,6 +227,11 @@ export class MemStorage implements IStorage {
       ...insertSubscription,
       id,
       description: insertSubscription.description || null,
+      image: insertSubscription.image || null,
+      priceBeforeDiscount: insertSubscription.priceBeforeDiscount || null,
+      priceAfterDiscount: insertSubscription.priceAfterDiscount || null,
+      features: insertSubscription.features || null,
+      isActive: insertSubscription.isActive !== undefined ? insertSubscription.isActive : true,
       createdAt: new Date(),
     };
     this.subscriptions.set(id, subscription);
@@ -372,6 +390,75 @@ export class MemStorage implements IStorage {
     };
     this.aiTokenSettings = aiTokenSettings;
     return aiTokenSettings;
+  }
+
+  // User Subscriptions
+  async getUserSubscription(userId: string): Promise<UserSubscription | undefined> {
+    return Array.from(this.userSubscriptions.values()).find(sub => sub.userId === userId && sub.status === 'active');
+  }
+
+  async getUserSubscriptionById(id: string): Promise<UserSubscription | undefined> {
+    return this.userSubscriptions.get(id);
+  }
+
+  async getAllUserSubscriptions(): Promise<UserSubscription[]> {
+    return Array.from(this.userSubscriptions.values());
+  }
+
+  async createUserSubscription(insertUserSubscription: InsertUserSubscription): Promise<UserSubscription> {
+    const id = randomUUID();
+    const userSubscription: UserSubscription = {
+      ...insertUserSubscription,
+      id,
+      status: insertUserSubscription.status || 'active',
+      startDate: insertUserSubscription.startDate || new Date(),
+      remainingDays: insertUserSubscription.remainingDays || 0,
+      isTrialPeriod: insertUserSubscription.isTrialPeriod || false,
+      createdAt: new Date(),
+      updatedAt: new Date(),
+    };
+    this.userSubscriptions.set(id, userSubscription);
+    return userSubscription;
+  }
+
+  async updateUserSubscription(id: string, updates: Partial<UserSubscription>): Promise<UserSubscription | undefined> {
+    const userSubscription = this.userSubscriptions.get(id);
+    if (!userSubscription) return undefined;
+    
+    const updatedUserSubscription = { 
+      ...userSubscription, 
+      ...updates,
+      updatedAt: new Date()
+    };
+    this.userSubscriptions.set(id, updatedUserSubscription);
+    return updatedUserSubscription;
+  }
+
+  async deleteUserSubscription(id: string): Promise<boolean> {
+    return this.userSubscriptions.delete(id);
+  }
+
+  async updateRemainingDays(id: string, remainingDays: number): Promise<UserSubscription | undefined> {
+    const userSubscription = this.userSubscriptions.get(id);
+    if (!userSubscription) return undefined;
+    
+    const status = remainingDays <= 0 ? 'expired' : 'active';
+    const updatedUserSubscription = { 
+      ...userSubscription, 
+      remainingDays,
+      status,
+      updatedAt: new Date()
+    };
+    this.userSubscriptions.set(id, updatedUserSubscription);
+    return updatedUserSubscription;
+  }
+
+  async getActiveUserSubscriptions(): Promise<UserSubscription[]> {
+    return Array.from(this.userSubscriptions.values()).filter(sub => sub.status === 'active');
+  }
+
+  async getExpiredUserSubscriptions(): Promise<UserSubscription[]> {
+    return Array.from(this.userSubscriptions.values()).filter(sub => sub.status === 'expired');
   }
 }
 

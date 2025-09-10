@@ -96,6 +96,19 @@ export const aiTokenSettings = pgTable("ai_token_settings", {
   updatedAt: timestamp("updated_at").defaultNow(),
 });
 
+export const userSubscriptions = pgTable("user_subscriptions", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  userId: varchar("user_id").notNull().references(() => users.id),
+  subscriptionId: varchar("subscription_id").notNull().references(() => subscriptions.id),
+  status: text("status").notNull().default("active"), // active, inactive, expired
+  startDate: timestamp("start_date").defaultNow(),
+  endDate: timestamp("end_date").notNull(),
+  remainingDays: integer("remaining_days").notNull().default(0),
+  isTrialPeriod: boolean("is_trial_period").notNull().default(false),
+  createdAt: timestamp("created_at").defaultNow(),
+  updatedAt: timestamp("updated_at").defaultNow(),
+});
+
 // Insert schemas
 export const insertUserSchema = createInsertSchema(users).omit({
   id: true,
@@ -141,6 +154,12 @@ export const insertAiTokenSettingsSchema = createInsertSchema(aiTokenSettings).o
   updatedAt: true,
 });
 
+export const insertUserSubscriptionSchema = createInsertSchema(userSubscriptions).omit({
+  id: true,
+  createdAt: true,
+  updatedAt: true,
+});
+
 // Types
 export type User = typeof users.$inferSelect;
 export type InsertUser = z.infer<typeof insertUserSchema>;
@@ -165,3 +184,6 @@ export type InsertReceivedMessage = z.infer<typeof insertReceivedMessageSchema>;
 
 export type AiTokenSettings = typeof aiTokenSettings.$inferSelect;
 export type InsertAiTokenSettings = z.infer<typeof insertAiTokenSettingsSchema>;
+
+export type UserSubscription = typeof userSubscriptions.$inferSelect;
+export type InsertUserSubscription = z.infer<typeof insertUserSubscriptionSchema>;

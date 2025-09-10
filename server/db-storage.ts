@@ -1,8 +1,8 @@
 import { Pool } from "pg";
 import { drizzle } from "drizzle-orm/node-postgres";
 import { eq, sql, desc } from "drizzle-orm";
-import { users, tickets, subscriptions, products, whatsappSettings, sentMessages, receivedMessages, aiTokenSettings } from "@shared/schema";
-import { type User, type InsertUser, type Ticket, type InsertTicket, type Subscription, type InsertSubscription, type Product, type InsertProduct, type WhatsappSettings, type InsertWhatsappSettings, type SentMessage, type InsertSentMessage, type ReceivedMessage, type InsertReceivedMessage, type AiTokenSettings, type InsertAiTokenSettings } from "@shared/schema";
+import { users, tickets, subscriptions, products, whatsappSettings, sentMessages, receivedMessages, aiTokenSettings, userSubscriptions } from "@shared/schema";
+import { type User, type InsertUser, type Ticket, type InsertTicket, type Subscription, type InsertSubscription, type Product, type InsertProduct, type WhatsappSettings, type InsertWhatsappSettings, type SentMessage, type InsertSentMessage, type ReceivedMessage, type InsertReceivedMessage, type AiTokenSettings, type InsertAiTokenSettings, type UserSubscription, type InsertUserSubscription } from "@shared/schema";
 import { type IStorage } from "./storage";
 import bcrypt from "bcryptjs";
 
@@ -271,5 +271,66 @@ export class DbStorage implements IStorage {
       const result = await db.insert(aiTokenSettings).values(settings).returning();
       return result[0];
     }
+  }
+
+  // User Subscriptions
+  async getUserSubscription(userId: string): Promise<UserSubscription | undefined> {
+    const result = await db.select().from(userSubscriptions)
+      .where(eq(userSubscriptions.userId, userId))
+      .orderBy(desc(userSubscriptions.createdAt))
+      .limit(1);
+    return result[0];
+  }
+
+  async getUserSubscriptionById(id: string): Promise<UserSubscription | undefined> {
+    const result = await db.select().from(userSubscriptions).where(eq(userSubscriptions.id, id)).limit(1);
+    return result[0];
+  }
+
+  async getAllUserSubscriptions(): Promise<UserSubscription[]> {
+    return await db.select().from(userSubscriptions).orderBy(desc(userSubscriptions.createdAt));
+  }
+
+  async createUserSubscription(insertUserSubscription: InsertUserSubscription): Promise<UserSubscription> {
+    const result = await db.insert(userSubscriptions).values(insertUserSubscription).returning();
+    return result[0];
+  }
+
+  async updateUserSubscription(id: string, updates: Partial<UserSubscription>): Promise<UserSubscription | undefined> {
+    const result = await db.update(userSubscriptions)
+      .set({ ...updates, updatedAt: new Date() })
+      .where(eq(userSubscriptions.id, id))
+      .returning();
+    return result[0];
+  }
+
+  async deleteUserSubscription(id: string): Promise<boolean> {
+    const result = await db.delete(userSubscriptions).where(eq(userSubscriptions.id, id));
+    return result.rowCount! > 0;
+  }
+
+  async updateRemainingDays(id: string, remainingDays: number): Promise<UserSubscription | undefined> {
+    const status = remainingDays <= 0 ? 'expired' : 'active';
+    const result = await db.update(userSubscriptions)
+      .set({ 
+        remainingDays, 
+        status,
+        updatedAt: new Date()
+      })
+      .where(eq(userSubscriptions.id, id))
+      .returning();
+    return result[0];
+  }
+
+  async getActiveUserSubscriptions(): Promise<UserSubscription[]> {
+    return await db.select().from(userSubscriptions)
+      .where(eq(userSubscriptions.status, 'active'))
+      .orderBy(desc(userSubscriptions.createdAt));
+  }
+
+  async getExpiredUserSubscriptions(): Promise<UserSubscription[]> {
+    return await db.select().from(userSubscriptions)
+      .where(eq(userSubscriptions.status, 'expired'))
+      .orderBy(desc(userSubscriptions.createdAt));
   }
 }

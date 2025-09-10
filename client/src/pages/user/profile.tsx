@@ -1,15 +1,17 @@
 import { useState } from "react";
-import { useMutation, useQueryClient } from "@tanstack/react-query";
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { DashboardLayout } from "@/components/dashboard-layout";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
-import { Camera, User, Save } from "lucide-react";
+import { Badge } from "@/components/ui/badge";
+import { Camera, User, Save, Crown, Calendar, Clock, CheckCircle, AlertCircle } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { useAuth } from "@/hooks/use-auth";
 import { createAuthenticatedRequest, getAuthHeaders } from "@/lib/auth";
+import type { UserSubscription } from "@shared/schema";
 
 export default function Profile() {
   const { user } = useAuth();
@@ -19,6 +21,12 @@ export default function Profile() {
   });
   const { toast } = useToast();
   const queryClient = useQueryClient();
+
+  // Get user's subscription info
+  const { data: userSubscription, isLoading: subscriptionLoading } = useQuery<UserSubscription | null>({
+    queryKey: ["/api/user-subscriptions/me"],
+    enabled: !!user,
+  });
 
   const updateProfileMutation = useMutation({
     mutationFn: async (data: typeof formData) => {
@@ -253,6 +261,140 @@ export default function Profile() {
             </Card>
           </div>
         </div>
+
+        {/* Subscription Information */}
+        <Card>
+          <CardHeader>
+            <CardTitle className="flex items-center gap-2">
+              <Crown className="h-5 w-5 text-primary" />
+              اطلاعات اشتراک
+            </CardTitle>
+          </CardHeader>
+          <CardContent>
+            {subscriptionLoading ? (
+              <div className="flex items-center justify-center py-8">
+                <div className="animate-spin rounded-full h-6 w-6 border-b-2 border-primary"></div>
+                <span className="mr-2">در حال بارگذاری...</span>
+              </div>
+            ) : userSubscription ? (
+              <div className="space-y-4">
+                {/* Subscription Status */}
+                <div className="flex items-center justify-between p-4 bg-muted/50 rounded-lg">
+                  <div className="flex items-center gap-3">
+                    <div className={`p-2 rounded-full ${
+                      userSubscription.status === 'active' && userSubscription.remainingDays > 0
+                        ? 'bg-green-100 text-green-600' 
+                        : 'bg-red-100 text-red-600'
+                    }`}>
+                      {userSubscription.status === 'active' && userSubscription.remainingDays > 0 ? (
+                        <CheckCircle className="h-5 w-5" />
+                      ) : (
+                        <AlertCircle className="h-5 w-5" />
+                      )}
+                    </div>
+                    <div>
+                      <p className="font-medium" data-testid="text-subscription-status">
+                        {userSubscription.status === 'active' && userSubscription.remainingDays > 0 
+                          ? 'اشتراک فعال' 
+                          : 'اشتراک غیرفعال'
+                        }
+                      </p>
+                      <p className="text-sm text-muted-foreground">
+                        وضعیت اشتراک شما
+                      </p>
+                    </div>
+                  </div>
+                  <Badge 
+                    variant={userSubscription.status === 'active' && userSubscription.remainingDays > 0 ? "default" : "secondary"}
+                    className={userSubscription.status === 'active' && userSubscription.remainingDays > 0 ? "bg-green-100 text-green-800 border-green-200" : ""}
+                  >
+                    {userSubscription.status === 'active' && userSubscription.remainingDays > 0 ? 'فعال' : 'غیرفعال'}
+                  </Badge>
+                </div>
+
+                {/* Remaining Days */}
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                  <div className="p-4 bg-blue-50 dark:bg-blue-950/30 rounded-lg border border-blue-200 dark:border-blue-800">
+                    <div className="flex items-center gap-2 mb-2">
+                      <Clock className="h-4 w-4 text-blue-600 dark:text-blue-400" />
+                      <span className="text-sm font-medium text-blue-900 dark:text-blue-300">روزهای باقیمانده</span>
+                    </div>
+                    <p className="text-2xl font-bold text-blue-600 dark:text-blue-400" data-testid="text-remaining-days">
+                      {userSubscription.remainingDays || 0} روز
+                    </p>
+                    {userSubscription.remainingDays <= 7 && userSubscription.remainingDays > 0 && (
+                      <p className="text-xs text-orange-600 dark:text-orange-400 mt-1">
+                        اشتراک شما به زودی به پایان می‌رسد
+                      </p>
+                    )}
+                  </div>
+
+                  <div className="p-4 bg-purple-50 dark:bg-purple-950/30 rounded-lg border border-purple-200 dark:border-purple-800">
+                    <div className="flex items-center gap-2 mb-2">
+                      <Calendar className="h-4 w-4 text-purple-600 dark:text-purple-400" />
+                      <span className="text-sm font-medium text-purple-900 dark:text-purple-300">تاریخ انقضا</span>
+                    </div>
+                    <p className="text-lg font-medium text-purple-600 dark:text-purple-400" data-testid="text-expiry-date">
+                      {userSubscription.endDate 
+                        ? new Date(userSubscription.endDate).toLocaleDateString('fa-IR')
+                        : 'نامشخص'
+                      }
+                    </p>
+                  </div>
+                </div>
+
+                {/* Trial Period Indicator */}
+                {userSubscription.isTrialPeriod && (
+                  <div className="p-3 bg-yellow-50 dark:bg-yellow-950/30 border border-yellow-200 dark:border-yellow-800 rounded-lg">
+                    <div className="flex items-center gap-2">
+                      <AlertCircle className="h-4 w-4 text-yellow-600 dark:text-yellow-400" />
+                      <span className="text-sm font-medium text-yellow-800 dark:text-yellow-300">
+                        شما در دوره آزمایشی رایگان هستید
+                      </span>
+                    </div>
+                  </div>
+                )}
+
+                {/* Subscription Dates */}
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4 pt-2 border-t">
+                  <div>
+                    <Label className="text-xs text-muted-foreground">تاریخ شروع اشتراک</Label>
+                    <p className="text-sm font-medium" data-testid="text-start-date">
+                      {userSubscription.startDate 
+                        ? new Date(userSubscription.startDate).toLocaleDateString('fa-IR')
+                        : 'نامشخص'
+                      }
+                    </p>
+                  </div>
+                  <div>
+                    <Label className="text-xs text-muted-foreground">وضعیت</Label>
+                    <p className="text-sm font-medium" data-testid="text-subscription-detailed-status">
+                      {userSubscription.status === 'active' 
+                        ? 'فعال' 
+                        : userSubscription.status === 'expired' 
+                        ? 'منقضی شده' 
+                        : 'غیرفعال'
+                      }
+                    </p>
+                  </div>
+                </div>
+              </div>
+            ) : (
+              <div className="text-center py-8">
+                <Crown className="h-12 w-12 text-muted-foreground mx-auto mb-4" />
+                <h3 className="text-lg font-medium text-muted-foreground mb-2" data-testid="text-no-subscription">
+                  اشتراک فعالی ندارید
+                </h3>
+                <p className="text-sm text-muted-foreground mb-4">
+                  برای استفاده از امکانات پیشرفته، یک اشتراک تهیه کنید
+                </p>
+                <Button variant="outline" size="sm">
+                  مشاهده بسته‌های اشتراک
+                </Button>
+              </div>
+            )}
+          </CardContent>
+        </Card>
       </div>
     </DashboardLayout>
   );
