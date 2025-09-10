@@ -54,6 +54,11 @@ export default function Subscriptions() {
           description: data.description,
           userLevel: data.userLevel,
           image: data.imageUrl || null,
+          priceBeforeDiscount: data.priceBeforeDiscount || null,
+          priceAfterDiscount: data.priceAfterDiscount || null,
+          duration: data.duration,
+          features: data.features.filter(f => f.trim() !== ""),
+          isActive: data.isActive,
         }),
       });
       if (!response.ok) throw new Error("خطا در ایجاد اشتراک");
@@ -98,6 +103,11 @@ export default function Subscriptions() {
           description: data.description,
           userLevel: data.userLevel,
           image: data.imageUrl || null,
+          priceBeforeDiscount: data.priceBeforeDiscount || null,
+          priceAfterDiscount: data.priceAfterDiscount || null,
+          duration: data.duration,
+          features: data.features,
+          isActive: data.isActive,
         }),
       });
       if (!response.ok) throw new Error("خطا در بروزرسانی اشتراک");
@@ -250,196 +260,186 @@ export default function Subscriptions() {
             </CardTitle>
           </CardHeader>
           <CardContent>
-            <form onSubmit={handleSubmit} className="space-y-6">
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                <div className="space-y-4">
-                  <div>
-                    <Label htmlFor="subscriptionName" className="text-sm font-medium">
-                      نام اشتراک *
-                    </Label>
-                    <Input
-                      id="subscriptionName"
-                      value={formData.name}
-                      onChange={(e) => setFormData({ ...formData, name: e.target.value })}
-                      placeholder="نام اشتراک را وارد کنید"
-                      required
-                      className="mt-1"
-                    />
-                  </div>
-                  
-                  <div>
-                    <Label htmlFor="userLevel" className="text-sm font-medium">
-                      سطح کاربری
-                    </Label>
-                    <Select
-                      value={formData.userLevel}
-                      onValueChange={(value) => setFormData({ ...formData, userLevel: value })}
-                    >
-                      <SelectTrigger className="mt-1">
-                        <SelectValue />
-                      </SelectTrigger>
-                      <SelectContent>
-                        <SelectItem value="user_level_1">کاربر سطح ۱</SelectItem>
-                        <SelectItem value="user_level_2">کاربر سطح ۲</SelectItem>
-                      </SelectContent>
-                    </Select>
-                  </div>
-
-                  <div>
-                    <Label htmlFor="description" className="text-sm font-medium">
-                      توضیحات
-                    </Label>
-                    <Textarea
-                      id="description"
-                      value={formData.description}
-                      onChange={(e) => setFormData({ ...formData, description: e.target.value })}
-                      placeholder="توضیحات اشتراک را وارد کنید"
-                      rows={3}
-                      className="mt-1"
-                    />
-                  </div>
-
-                  <div className="grid grid-cols-2 gap-4">
-                    <div>
-                      <Label htmlFor="priceBeforeDiscount" className="text-sm font-medium">
-                        قیمت قبل تخفیف (تومان)
-                      </Label>
-                      <Input
-                        id="priceBeforeDiscount"
-                        type="number"
-                        value={formData.priceBeforeDiscount}
-                        onChange={(e) => setFormData({ ...formData, priceBeforeDiscount: e.target.value })}
-                        placeholder="100000"
-                        className="mt-1"
-                      />
-                    </div>
-                    
-                    <div>
-                      <Label htmlFor="priceAfterDiscount" className="text-sm font-medium">
-                        قیمت بعد تخفیف (تومان)
-                      </Label>
-                      <Input
-                        id="priceAfterDiscount"
-                        type="number"
-                        value={formData.priceAfterDiscount}
-                        onChange={(e) => setFormData({ ...formData, priceAfterDiscount: e.target.value })}
-                        placeholder="80000"
-                        className="mt-1"
-                      />
-                    </div>
-                  </div>
-
-                  <div className="grid grid-cols-2 gap-4">
-                    <div>
-                      <Label htmlFor="duration" className="text-sm font-medium">
-                        مدت زمان اشتراک
-                      </Label>
-                      <Select
-                        value={formData.duration}
-                        onValueChange={(value) => setFormData({ ...formData, duration: value })}
-                      >
-                        <SelectTrigger className="mt-1">
-                          <SelectValue />
-                        </SelectTrigger>
-                        <SelectContent>
-                          <SelectItem value="monthly">ماهانه</SelectItem>
-                          <SelectItem value="yearly">سالانه</SelectItem>
-                        </SelectContent>
-                      </Select>
-                    </div>
-
-                    <div>
-                      <Label className="text-sm font-medium flex items-center gap-2">
-                        وضعیت فعال
-                        <input
-                          type="checkbox"
-                          checked={formData.isActive}
-                          onChange={(e) => setFormData({ ...formData, isActive: e.target.checked })}
-                          className="rounded"
-                        />
-                      </Label>
-                    </div>
-                  </div>
-
-                  <div>
-                    <Label className="text-sm font-medium">
-                      ویژگی‌ها و امکانات
-                    </Label>
-                    <div className="mt-2 space-y-2">
-                      {formData.features.map((feature, index) => (
-                        <div key={index} className="flex gap-2">
-                          <Input
-                            value={feature}
-                            onChange={(e) => {
-                              const newFeatures = [...formData.features];
-                              newFeatures[index] = e.target.value;
-                              setFormData({ ...formData, features: newFeatures });
-                            }}
-                            placeholder={`ویژگی ${index + 1}`}
-                          />
-                          {formData.features.length > 1 && (
-                            <Button
-                              type="button"
-                              variant="destructive"
-                              size="sm"
-                              onClick={() => {
-                                const newFeatures = formData.features.filter((_, i) => i !== index);
-                                setFormData({ ...formData, features: newFeatures });
-                              }}
-                            >
-                              <X className="h-4 w-4" />
-                            </Button>
-                          )}
-                        </div>
-                      ))}
-                      <Button
-                        type="button"
-                        variant="outline"
-                        size="sm"
-                        onClick={() => setFormData({ ...formData, features: [...formData.features, ""] })}
-                        className="mt-2"
-                      >
-                        <Plus className="h-4 w-4 ml-2" />
-                        اضافه ویژگی
-                      </Button>
-                    </div>
-                  </div>
+            <form onSubmit={handleSubmit} className="space-y-4">
+              <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                <div>
+                  <Label htmlFor="subscriptionName" className="text-sm font-medium">
+                    نام اشتراک *
+                  </Label>
+                  <Input
+                    id="subscriptionName"
+                    value={formData.name}
+                    onChange={(e) => setFormData({ ...formData, name: e.target.value })}
+                    placeholder="نام اشتراک"
+                    required
+                    className="mt-1"
+                  />
+                </div>
+                
+                <div>
+                  <Label htmlFor="userLevel" className="text-sm font-medium">
+                    سطح کاربری
+                  </Label>
+                  <Select
+                    value={formData.userLevel}
+                    onValueChange={(value) => setFormData({ ...formData, userLevel: value })}
+                  >
+                    <SelectTrigger className="mt-1">
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="user_level_1">کاربر سطح ۱</SelectItem>
+                      <SelectItem value="user_level_2">کاربر سطح ۲</SelectItem>
+                    </SelectContent>
+                  </Select>
                 </div>
 
-                <div className="space-y-4">
-                  <div>
-                    <Label htmlFor="imageUrl" className="text-sm font-medium">
-                      لینک تصویر اشتراک
-                    </Label>
-                    <Input
-                      id="imageUrl"
-                      type="url"
-                      value={formData.imageUrl}
-                      onChange={(e) => setFormData({ ...formData, imageUrl: e.target.value })}
-                      placeholder="https://example.com/image.jpg"
-                      className="mt-1"
-                    />
-                    {formData.imageUrl && (
-                      <div className="mt-2">
-                        <img
-                          src={formData.imageUrl}
-                          alt="پیش‌نمایش"
-                          className="w-full h-48 object-cover rounded-lg border"
-                          onError={(e) => {
-                            (e.target as HTMLImageElement).style.display = 'none';
-                          }}
-                        />
-                      </div>
-                    )}
-                  </div>
+                <div>
+                  <Label htmlFor="duration" className="text-sm font-medium">
+                    مدت زمان
+                  </Label>
+                  <Select
+                    value={formData.duration}
+                    onValueChange={(value) => setFormData({ ...formData, duration: value })}
+                  >
+                    <SelectTrigger className="mt-1">
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="monthly">ماهانه</SelectItem>
+                      <SelectItem value="yearly">سالانه</SelectItem>
+                    </SelectContent>
+                  </Select>
                 </div>
               </div>
 
-              <div className="flex justify-end pt-4 border-t">
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <div>
+                  <Label htmlFor="description" className="text-sm font-medium">
+                    توضیحات
+                  </Label>
+                  <Textarea
+                    id="description"
+                    value={formData.description}
+                    onChange={(e) => setFormData({ ...formData, description: e.target.value })}
+                    placeholder="توضیحات اشتراک"
+                    rows={2}
+                    className="mt-1"
+                  />
+                </div>
+
+                <div>
+                  <Label htmlFor="imageUrl" className="text-sm font-medium">
+                    لینک تصویر
+                  </Label>
+                  <Input
+                    id="imageUrl"
+                    type="url"
+                    value={formData.imageUrl}
+                    onChange={(e) => setFormData({ ...formData, imageUrl: e.target.value })}
+                    placeholder="https://example.com/image.jpg"
+                    className="mt-1"
+                  />
+                </div>
+              </div>
+
+              <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                <div>
+                  <Label htmlFor="priceBeforeDiscount" className="text-sm font-medium">
+                    قیمت قبل تخفیف (تومان)
+                  </Label>
+                  <Input
+                    id="priceBeforeDiscount"
+                    type="number"
+                    value={formData.priceBeforeDiscount}
+                    onChange={(e) => setFormData({ ...formData, priceBeforeDiscount: e.target.value })}
+                    placeholder="100000"
+                    className="mt-1"
+                  />
+                </div>
+                
+                <div>
+                  <Label htmlFor="priceAfterDiscount" className="text-sm font-medium">
+                    قیمت بعد تخفیف (تومان)
+                  </Label>
+                  <Input
+                    id="priceAfterDiscount"
+                    type="number"
+                    value={formData.priceAfterDiscount}
+                    onChange={(e) => setFormData({ ...formData, priceAfterDiscount: e.target.value })}
+                    placeholder="80000"
+                    className="mt-1"
+                  />
+                </div>
+
+                <div>
+                  <Label className="text-sm font-medium flex items-center justify-between">
+                    وضعیت فعال
+                    <div className="flex items-center gap-2" dir="ltr">
+                      <Switch
+                        checked={formData.isActive}
+                        onCheckedChange={(checked) => setFormData({ ...formData, isActive: checked })}
+                        className="data-[state=checked]:bg-primary [&>span]:data-[state=checked]:translate-x-5 [&>span]:data-[state=unchecked]:translate-x-0"
+                      />
+                      <span className="text-sm text-muted-foreground" dir="rtl">
+                        {formData.isActive ? "فعال" : "غیرفعال"}
+                      </span>
+                    </div>
+                  </Label>
+                </div>
+              </div>
+
+              <div>
+                <Label className="text-sm font-medium">
+                  ویژگی‌ها و امکانات
+                </Label>
+                <div className="mt-2 space-y-2">
+                  {formData.features.map((feature, index) => (
+                    <div key={index} className="flex gap-2">
+                      <Input
+                        value={feature}
+                        onChange={(e) => {
+                          const newFeatures = [...formData.features];
+                          newFeatures[index] = e.target.value;
+                          setFormData({ ...formData, features: newFeatures });
+                        }}
+                        placeholder={`ویژگی ${index + 1}`}
+                        className="text-sm"
+                      />
+                      {formData.features.length > 1 && (
+                        <Button
+                          type="button"
+                          variant="destructive"
+                          size="sm"
+                          onClick={() => {
+                            const newFeatures = formData.features.filter((_, i) => i !== index);
+                            setFormData({ ...formData, features: newFeatures });
+                          }}
+                        >
+                          <X className="h-4 w-4" />
+                        </Button>
+                      )}
+                    </div>
+                  ))}
+                  <Button
+                    type="button"
+                    variant="outline"
+                    size="sm"
+                    onClick={() => setFormData({ ...formData, features: [...formData.features, ""] })}
+                    className="mt-2"
+                  >
+                    <Plus className="h-4 w-4 ml-2" />
+                    اضافه ویژگی
+                  </Button>
+                </div>
+              </div>
+
+              <div className="flex justify-end pt-3 border-t">
                 <Button 
                   type="submit" 
                   disabled={createMutation.isPending}
                   className="flex items-center gap-2"
+                  size="sm"
                 >
                   {createMutation.isPending ? (
                     <>
@@ -478,9 +478,11 @@ export default function Subscriptions() {
                 </CardContent>
               </Card>
             ) : (
-              <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-                {subscriptions.map((subscription) => (
-                  <Card key={subscription.id} className="group hover:shadow-xl transition-all duration-300 border-2 hover:border-primary/20 bg-gradient-to-br from-background to-muted/30">
+              <div className="grid grid-cols-1 lg:grid-cols-2 xl:grid-cols-3 gap-4">
+                {subscriptions.map((subscription) => {
+                  const isTrialSubscription = subscription.name === "اشتراک ۷ روزه رایگان";
+                  return (
+                  <Card key={subscription.id} className="group hover:shadow-lg transition-all duration-300 border hover:border-primary/30 bg-gradient-to-br from-background to-muted/10">
                     <CardContent className="p-0">
                       {/* Header with Image and Status Toggle */}
                       <div className="relative">
@@ -489,163 +491,171 @@ export default function Subscriptions() {
                             <img
                               src={subscription.image}
                               alt={subscription.name}
-                              className="w-full h-40 object-cover rounded-t-lg"
+                              className="w-full h-24 object-cover rounded-t-lg"
                             />
-                            <div className="absolute inset-0 bg-black/20 rounded-t-lg" />
+                            <div className="absolute inset-0 bg-black/10 rounded-t-lg" />
                           </div>
                         ) : (
-                          <div className="w-full h-40 bg-gradient-to-br from-primary/10 to-primary/30 rounded-t-lg flex items-center justify-center">
-                            <Crown className="h-16 w-16 text-primary/60" />
+                          <div className="w-full h-24 bg-gradient-to-br from-primary/10 to-primary/20 rounded-t-lg flex items-center justify-center">
+                            <Crown className="h-8 w-8 text-primary/60" />
                           </div>
                         )}
                         
                         {/* Status Toggle */}
-                        <div className="absolute top-3 left-3">
-                          <div className="flex items-center gap-2 bg-white/90 backdrop-blur-sm rounded-full px-3 py-1.5 border shadow-sm">
-                            <div className="flex items-center gap-2">
+                        <div className="absolute top-2 left-2">
+                          <div className="flex items-center gap-2 bg-white/95 backdrop-blur-sm rounded-full px-2 py-1 border shadow-sm">
+                            <div className="flex items-center gap-1.5" dir="ltr">
                               {subscription.isActive ? (
-                                <Power className="h-4 w-4 text-green-600" />
+                                <Power className="h-3 w-3 text-green-600" />
                               ) : (
-                                <PowerOff className="h-4 w-4 text-gray-400" />
+                                <PowerOff className="h-3 w-3 text-gray-400" />
                               )}
                               <Switch
                                 checked={subscription.isActive}
                                 onCheckedChange={() => handleToggleStatus(subscription.id, subscription.isActive)}
-                                disabled={toggleStatusMutation.isPending}
+                                disabled={toggleStatusMutation.isPending || isTrialSubscription}
                                 data-testid={`switch-subscription-${subscription.id}`}
+                                className="scale-75 data-[state=checked]:bg-primary [&>span]:data-[state=checked]:translate-x-5 [&>span]:data-[state=unchecked]:translate-x-0"
                               />
                             </div>
                           </div>
                         </div>
 
                         {/* User Level Badge */}
-                        <div className="absolute top-3 right-3">
-                          {getUserLevelBadge(subscription.userLevel)}
+                        <div className="absolute top-2 right-2">
+                          <Badge variant={subscription.userLevel === "user_level_1" ? "secondary" : "outline"} className="text-xs">
+                            {subscription.userLevel === "user_level_1" ? "سطح ۱" : "سطح ۲"}
+                          </Badge>
                         </div>
 
                         {/* Action Buttons */}
-                        <div className="absolute bottom-3 right-3 opacity-0 group-hover:opacity-100 transition-opacity">
+                        <div className="absolute bottom-2 right-2 opacity-0 group-hover:opacity-100 transition-opacity">
                           <div className="flex items-center gap-1">
                             <Button
                               variant="secondary"
                               size="sm"
                               onClick={() => handleEdit(subscription)}
-                              className="bg-white/90 backdrop-blur-sm hover:bg-white border shadow-sm"
+                              className="bg-white/95 backdrop-blur-sm hover:bg-white border shadow-sm h-7 w-7 p-0"
                               data-testid={`button-edit-${subscription.id}`}
                             >
-                              <Edit className="h-4 w-4" />
+                              <Edit className="h-3 w-3" />
                             </Button>
-                            <Button
-                              variant="destructive"
-                              size="sm"
-                              onClick={() => handleDelete(subscription.id)}
-                              className="bg-white/90 backdrop-blur-sm hover:bg-red-50 text-red-600 border shadow-sm"
-                              data-testid={`button-delete-${subscription.id}`}
-                            >
-                              <Trash2 className="h-4 w-4" />
-                            </Button>
+                            {!isTrialSubscription && (
+                              <Button
+                                variant="destructive"
+                                size="sm"
+                                onClick={() => handleDelete(subscription.id)}
+                                className="bg-white/95 backdrop-blur-sm hover:bg-red-50 text-red-600 border shadow-sm h-7 w-7 p-0"
+                                data-testid={`button-delete-${subscription.id}`}
+                              >
+                                <Trash2 className="h-3 w-3" />
+                              </Button>
+                            )}
                           </div>
                         </div>
+                        
+                        {/* Trial Badge */}
+                        {isTrialSubscription && (
+                          <div className="absolute bottom-2 left-2">
+                            <Badge className="bg-orange-100 text-orange-800 border-orange-200 text-xs">
+                              <Clock className="h-3 w-3 ml-1" />
+                              رایگان
+                            </Badge>
+                          </div>
+                        )}
                       </div>
                       
                       {/* Content */}
-                      <div className="p-6">
+                      <div className="p-3">
                         {/* Title and Status */}
-                        <div className="flex items-start justify-between mb-4">
-                          <div>
-                            <h3 className="text-xl font-bold text-foreground group-hover:text-primary transition-colors mb-1" data-testid={`text-subscription-name-${subscription.id}`}>
-                              {subscription.name}
-                            </h3>
-                            <div className="flex items-center gap-2">
-                              <Badge 
-                                variant={subscription.isActive ? "default" : "secondary"}
-                                className={subscription.isActive ? "bg-green-100 text-green-800 border-green-200" : ""}
-                              >
+                        <div className="mb-3">
+                          <h3 className="text-lg font-bold text-foreground group-hover:text-primary transition-colors mb-1 leading-tight" data-testid={`text-subscription-name-${subscription.id}`}>
+                            {subscription.name}
+                          </h3>
+                          <div className="flex items-center gap-2">
+                            <Badge 
+                              variant={subscription.isActive ? "default" : "secondary"}
+                              className="text-xs"
+                              data-testid={`badge-status-${subscription.id}`}
+                            >
+                              <div className="flex items-center gap-1">
                                 {subscription.isActive ? (
-                                  <><CheckCircle className="h-3 w-3 ml-1" /> فعال</>
+                                  <CheckCircle className="h-3 w-3" />
                                 ) : (
-                                  <><X className="h-3 w-3 ml-1" /> غیرفعال</>
+                                  <Clock className="h-3 w-3" />
                                 )}
-                              </Badge>
-                              <Badge variant="outline" className="flex items-center gap-1">
-                                <Calendar className="h-3 w-3" />
-                                {subscription.duration === 'monthly' ? 'ماهانه' : 'سالانه'}
-                              </Badge>
-                            </div>
+                                {subscription.isActive ? "فعال" : "غیرفعال"}
+                              </div>
+                            </Badge>
+                            <Badge variant="outline" className="text-xs">
+                              <Calendar className="h-3 w-3 ml-1" />
+                              {subscription.duration === "monthly" ? "ماهانه" : "سالانه"}
+                            </Badge>
                           </div>
                         </div>
 
                         {/* Description */}
                         {subscription.description && (
-                          <p className="text-sm text-muted-foreground mb-4 leading-relaxed" data-testid={`text-description-${subscription.id}`}>
+                          <p className="text-xs text-muted-foreground mb-3 leading-relaxed line-clamp-2" data-testid={`text-description-${subscription.id}`}>
                             {subscription.description}
                           </p>
                         )}
 
                         {/* Pricing */}
-                        <div className="mb-4 p-3 bg-muted/50 rounded-lg border">
-                          <div className="flex items-center gap-2 mb-1">
-                            <DollarSign className="h-4 w-4 text-primary" />
-                            <span className="text-sm font-medium text-muted-foreground">قیمت:</span>
-                          </div>
-                          <div className="flex items-center gap-3">
-                            {subscription.priceAfterDiscount ? (
-                              <>
-                                <span className="text-lg font-bold text-green-600" data-testid={`text-price-after-${subscription.id}`}>
-                                  {parseInt(subscription.priceAfterDiscount).toLocaleString('fa-IR')} تومان
-                                </span>
-                                <span className="text-sm line-through text-muted-foreground" data-testid={`text-price-before-${subscription.id}`}>
-                                  {parseInt(subscription.priceBeforeDiscount || '0').toLocaleString('fa-IR')} تومان
-                                </span>
-                                <Badge variant="destructive" className="text-xs">
-                                  تخفیف
-                                </Badge>
-                              </>
+                        <div className="mb-3">
+                          <div className="text-center">
+                            {subscription.priceAfterDiscount && subscription.priceBeforeDiscount ? (
+                              <div className="space-y-1">
+                                <div className="flex items-center justify-center gap-2">
+                                  <span className="text-lg font-bold text-primary" data-testid={`text-price-after-${subscription.id}`}>
+                                    {parseFloat(subscription.priceAfterDiscount).toLocaleString()}
+                                  </span>
+                                  <span className="text-xs text-muted-foreground">تومان</span>
+                                </div>
+                                <div className="flex items-center justify-center gap-1">
+                                  <span className="text-xs line-through text-muted-foreground" data-testid={`text-price-before-${subscription.id}`}>
+                                    {parseFloat(subscription.priceBeforeDiscount).toLocaleString()}
+                                  </span>
+                                  <span className="text-xs text-muted-foreground">تومان</span>
+                                </div>
+                              </div>
                             ) : subscription.priceBeforeDiscount ? (
-                              <span className="text-lg font-bold text-primary" data-testid={`text-price-${subscription.id}`}>
-                                {parseInt(subscription.priceBeforeDiscount).toLocaleString('fa-IR')} تومان
-                              </span>
+                              <div className="flex items-center justify-center gap-2">
+                                <span className="text-lg font-bold text-primary" data-testid={`text-price-single-${subscription.id}`}>
+                                  {parseFloat(subscription.priceBeforeDiscount).toLocaleString()}
+                                </span>
+                                <span className="text-xs text-muted-foreground">تومان</span>
+                              </div>
                             ) : (
-                              <span className="text-lg font-bold text-primary" data-testid={`text-price-free-${subscription.id}`}>رایگان</span>
+                              <span className="text-sm text-green-600 font-medium">رایگان</span>
                             )}
                           </div>
                         </div>
 
                         {/* Features */}
-                        {subscription.features && subscription.features.length > 0 && subscription.features[0] && (
-                          <div className="mb-4">
-                            <div className="flex items-center gap-2 mb-2">
-                              <CheckCircle className="h-4 w-4 text-primary" />
-                              <span className="text-sm font-medium text-muted-foreground">ویژگی‌ها:</span>
-                            </div>
+                        {subscription.features && subscription.features.length > 0 && (
+                          <div className="border-t pt-2">
+                            <div className="text-xs font-medium text-foreground mb-2">ویژگی‌ها:</div>
                             <div className="space-y-1">
-                              {subscription.features.map((feature: string, index: number) => (
-                                feature && (
-                                  <div key={index} className="flex items-center gap-2 text-sm" data-testid={`text-feature-${subscription.id}-${index}`}>
-                                    <div className="w-1.5 h-1.5 bg-primary rounded-full" />
-                                    {feature}
-                                  </div>
-                                )
+                              {subscription.features.slice(0, 2).map((feature, index) => (
+                                <div key={index} className="flex items-start gap-1.5 text-xs text-muted-foreground">
+                                  <CheckCircle className="h-3 w-3 text-green-500 mt-0.5 flex-shrink-0" />
+                                  <span className="leading-4 line-clamp-1">{feature}</span>
+                                </div>
                               ))}
+                              {subscription.features.length > 2 && (
+                                <div className="text-xs text-primary font-medium">
+                                  + {subscription.features.length - 2} ویژگی دیگر
+                                </div>
+                              )}
                             </div>
                           </div>
                         )}
-
-                        {/* Footer */}
-                        <div className="flex items-center justify-between text-xs text-muted-foreground pt-3 border-t">
-                          <div className="flex items-center gap-1">
-                            <Clock className="h-3 w-3" />
-                            <span data-testid={`text-created-${subscription.id}`}>
-                              {subscription.createdAt ? 
-                                new Date(subscription.createdAt).toLocaleDateString('fa-IR') : 'نامشخص'
-                              }
-                            </span>
-                          </div>
-                        </div>
                       </div>
                     </CardContent>
                   </Card>
-                ))}
+                  );
+                })}
               </div>
             )}
           </div>
@@ -775,6 +785,20 @@ export default function Subscriptions() {
                         type="url"
                         defaultValue={editingSubscription.image || ""}
                         placeholder="https://example.com/image.jpg"
+                        className="mt-1"
+                      />
+                    </div>
+
+                    <div>
+                      <Label htmlFor="editFeatures" className="text-sm font-medium">
+                        ویژگی‌ها (با کاما جدا کنید)
+                      </Label>
+                      <Textarea
+                        id="editFeatures"
+                        name="features"
+                        defaultValue={editingSubscription.features ? editingSubscription.features.join(', ') : ""}
+                        rows={4}
+                        placeholder="ویژگی اول, ویژگی دوم, ویژگی سوم"
                         className="mt-1"
                       />
                     </div>
