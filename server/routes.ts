@@ -226,6 +226,48 @@ export async function registerRoutes(app: Express): Promise<Server> {
         password: hashedPassword,
       });
 
+      // Create 7-day free trial subscription for new users created by admin
+      try {
+        // First, ensure we have a trial subscription plan
+        let trialSubscription = (await storage.getAllSubscriptions()).find(sub => 
+          sub.name.includes('رایگان') || sub.name.includes('آزمایشی') || 
+          (sub.priceBeforeDiscount === '0' || !sub.priceBeforeDiscount)
+        );
+
+        // If no trial subscription exists, create one
+        if (!trialSubscription) {
+          trialSubscription = await storage.createSubscription({
+            name: "اشتراک آزمایشی رایگان",
+            description: "اشتراک رایگان 7 روزه برای کاربران جدید",
+            duration: "monthly",
+            priceBeforeDiscount: "0",
+            priceAfterDiscount: null,
+            features: [
+              "دسترسی محدود به امکانات",
+              "پشتیبانی پایه",
+              "7 روز استفاده رایگان"
+            ],
+            userLevel: "user_level_1",
+            isActive: true,
+            image: null,
+          });
+        }
+
+        // Create user subscription for 7-day trial
+        await storage.createUserSubscription({
+          userId: user.id,
+          subscriptionId: trialSubscription.id,
+          remainingDays: 7,
+          startDate: new Date(),
+          endDate: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000), // 7 days from now
+          status: "active",
+          isTrialPeriod: true,
+        });
+      } catch (trialError) {
+        console.error("خطا در ایجاد اشتراک آزمایشی:", trialError);
+        // Don't fail user creation if trial subscription creation fails
+      }
+
       res.json({ ...user, password: undefined });
     } catch (error) {
       if (error instanceof z.ZodError) {
@@ -254,14 +296,42 @@ export async function registerRoutes(app: Express): Promise<Server> {
   app.delete("/api/users/:id", authenticateToken, requireAdmin, async (req, res) => {
     try {
       const { id } = req.params;
-      const success = await storage.deleteUser(id);
       
-      if (!success) {
+      // Check if user exists
+      const user = await storage.getUser(id);
+      if (!user) {
         return res.status(404).json({ message: "کاربر یافت نشد" });
       }
 
-      res.json({ message: "کاربر با موفقیت حذف شد" });
+      // First delete user subscriptions (to avoid foreign key constraint)
+      // Get ALL user subscriptions for this specific user
+      const userSubscriptions = await storage.getUserSubscriptionsByUserId(id);
+      for (const subscription of userSubscriptions) {
+        await storage.deleteUserSubscription(subscription.id);
+      }
+
+      // Delete user tickets (if any)
+      const userTickets = await storage.getTicketsByUser(id);
+      for (const ticket of userTickets) {
+        await storage.deleteTicket(ticket.id);
+      }
+
+      // Delete user products (if any)
+      const userProducts = await storage.getProductsByUser(id);
+      for (const product of userProducts) {
+        await storage.deleteProduct(product.id);
+      }
+
+      // Finally delete the user
+      const success = await storage.deleteUser(id);
+      
+      if (!success) {
+        return res.status(500).json({ message: "خطا در حذف کاربر" });
+      }
+
+      res.json({ message: "کاربر و تمام اطلاعات مربوطه با موفقیت حذف شد" });
     } catch (error) {
+      console.error("خطا در حذف کاربر:", error);
       res.status(500).json({ message: "خطا در حذف کاربر" });
     }
   });

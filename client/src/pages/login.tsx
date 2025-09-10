@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { Link } from "wouter";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
@@ -31,13 +31,16 @@ export default function Login() {
     login({ email: emailOrUsername, password });
   };
 
-  if (loginError) {
-    toast({
-      title: "خطا در ورود",
-      description: "نام کاربری/ایمیل یا رمز عبور اشتباه است",
-      variant: "destructive",
-    });
-  }
+  // استفاده از useEffect برای نمایش خطاهای ورود
+  useEffect(() => {
+    if (loginError) {
+      toast({
+        title: "خطا در ورود",
+        description: "نام کاربری/ایمیل یا رمز عبور اشتباه است",
+        variant: "destructive",
+      });
+    }
+  }, [loginError, toast]);
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-blue-50 to-indigo-100 flex items-center justify-center p-4" data-testid="page-login">

@@ -282,6 +282,12 @@ export class DbStorage implements IStorage {
     return result[0];
   }
 
+  async getUserSubscriptionsByUserId(userId: string): Promise<UserSubscription[]> {
+    return await db.select().from(userSubscriptions)
+      .where(eq(userSubscriptions.userId, userId))
+      .orderBy(desc(userSubscriptions.createdAt));
+  }
+
   async getUserSubscriptionById(id: string): Promise<UserSubscription | undefined> {
     const result = await db.select().from(userSubscriptions).where(eq(userSubscriptions.id, id)).limit(1);
     return result[0];

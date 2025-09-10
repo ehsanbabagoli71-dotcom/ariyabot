@@ -57,6 +57,7 @@ export interface IStorage {
   // User Subscriptions
   getUserSubscription(userId: string): Promise<UserSubscription | undefined>;
   getUserSubscriptionById(id: string): Promise<UserSubscription | undefined>;
+  getUserSubscriptionsByUserId(userId: string): Promise<UserSubscription[]>;
   getAllUserSubscriptions(): Promise<UserSubscription[]>;
   createUserSubscription(userSubscription: InsertUserSubscription): Promise<UserSubscription>;
   updateUserSubscription(id: string, updates: Partial<UserSubscription>): Promise<UserSubscription | undefined>;
@@ -228,6 +229,7 @@ export class MemStorage implements IStorage {
       id,
       description: insertSubscription.description || null,
       image: insertSubscription.image || null,
+      duration: insertSubscription.duration || 'monthly',
       priceBeforeDiscount: insertSubscription.priceBeforeDiscount || null,
       priceAfterDiscount: insertSubscription.priceAfterDiscount || null,
       features: insertSubscription.features || null,
@@ -395,6 +397,10 @@ export class MemStorage implements IStorage {
   // User Subscriptions
   async getUserSubscription(userId: string): Promise<UserSubscription | undefined> {
     return Array.from(this.userSubscriptions.values()).find(sub => sub.userId === userId && sub.status === 'active');
+  }
+
+  async getUserSubscriptionsByUserId(userId: string): Promise<UserSubscription[]> {
+    return Array.from(this.userSubscriptions.values()).filter(sub => sub.userId === userId);
   }
 
   async getUserSubscriptionById(id: string): Promise<UserSubscription | undefined> {
