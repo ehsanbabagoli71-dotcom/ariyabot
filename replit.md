@@ -17,6 +17,10 @@ Preferred communication style: Simple, everyday language.
 - User subscription API endpoints کامل شدند
 - storage interface ها برای عملیات user subscription به‌روزرسانی شدند
 - تغییرات database با موفقیت اعمال شد
+- رابط کاربری صفحه اشتراک‌ها بهینه‌سازی شد - فرم و کارت‌ها کوچک‌تر و فشرده‌تر شدند (2025-09-10)
+- مشکل راست‌چین بودن switch ها حل شد با استفاده از الگوی RTL مناسب
+- اشتراک ۷ روزه رایگان پیش‌فرض اضافه شد با قابلیت غیرقابل حذف و غیرفعال‌سازی
+- طراحی کارت‌های اشتراک از 2 ستون به 3 ستون تغییر کرد برای استفاده بهتر از فضا
 
 # System Architecture
 
