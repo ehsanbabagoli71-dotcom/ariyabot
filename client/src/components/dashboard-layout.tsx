@@ -1,5 +1,5 @@
 import { Sidebar } from "@/components/sidebar";
-import { Bell, User } from "lucide-react";
+import { Bell, User, LogOut } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Badge } from "@/components/ui/badge";
@@ -11,7 +11,7 @@ interface DashboardLayoutProps {
 }
 
 export function DashboardLayout({ children, title }: DashboardLayoutProps) {
-  const { user } = useAuth();
+  const { user, logout } = useAuth();
 
   const getRoleBadge = (role: string) => {
     switch (role) {
@@ -58,9 +58,16 @@ export function DashboardLayout({ children, title }: DashboardLayoutProps) {
                 <p className="text-sm font-medium text-foreground" data-testid="text-user-name">
                   {user?.firstName} {user?.lastName}
                 </p>
-                <p className="text-xs text-muted-foreground" data-testid="text-user-phone">{user?.phone}</p>
               </div>
-              {user && getRoleBadge(user.role)}
+              <Button
+                variant="ghost"
+                size="sm"
+                onClick={logout}
+                className="text-muted-foreground hover:text-foreground"
+                data-testid="button-logout"
+              >
+                <LogOut className="h-4 w-4" />
+              </Button>
             </div>
           </div>
         </header>

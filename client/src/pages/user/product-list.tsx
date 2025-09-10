@@ -190,16 +190,9 @@ export default function ProductList() {
                           )}
                         </TableCell>
                         <TableCell>
-                          <div>
-                            <p className="font-medium text-foreground" data-testid={`text-product-name-${product.id}`}>
-                              {product.name}
-                            </p>
-                            {product.description && (
-                              <p className="text-sm text-muted-foreground truncate max-w-xs" data-testid={`text-product-description-${product.id}`}>
-                                {product.description}
-                              </p>
-                            )}
-                          </div>
+                          <p className="font-medium text-foreground" data-testid={`text-product-name-${product.id}`}>
+                            {product.name}
+                          </p>
                         </TableCell>
                         <TableCell className="text-muted-foreground" data-testid={`text-product-quantity-${product.id}`}>
                           {product.quantity}
@@ -211,13 +204,14 @@ export default function ProductList() {
                           {formatPrice(product.priceAfterDiscount)}
                         </TableCell>
                         <TableCell>
-                          <div className="flex items-center space-x-2 space-x-reverse">
+                          <div className="flex items-center gap-2" dir="ltr">
                             <Switch
                               checked={product.isActive}
                               onCheckedChange={() => handleToggleActive(product)}
                               data-testid={`switch-product-active-${product.id}`}
+                              className="data-[state=checked]:bg-primary [&>span]:data-[state=checked]:translate-x-5 [&>span]:data-[state=unchecked]:translate-x-0"
                             />
-                            <span className={`text-sm ${product.isActive ? 'text-foreground' : 'text-muted-foreground'}`}>
+                            <span className={`text-sm ${product.isActive ? 'text-foreground' : 'text-muted-foreground'}`} dir="rtl">
                               {product.isActive ? 'فعال' : 'غیرفعال'}
                             </span>
                           </div>

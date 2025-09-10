@@ -6,7 +6,7 @@ import jwt from "jsonwebtoken";
 import multer from "multer";
 import path from "path";
 import { fileURLToPath } from "url";
-import { insertUserSchema, insertTicketSchema, insertSubscriptionSchema, insertProductSchema, insertWhatsappSettingsSchema, insertSentMessageSchema, insertReceivedMessageSchema, insertAiTokenSettingsSchema, insertUserSubscriptionSchema, type User } from "@shared/schema";
+import { insertUserSchema, insertTicketSchema, insertSubscriptionSchema, insertProductSchema, insertWhatsappSettingsSchema, insertSentMessageSchema, insertReceivedMessageSchema, insertAiTokenSettingsSchema, insertUserSubscriptionSchema, ticketReplySchema, type User } from "@shared/schema";
 import { z } from "zod";
 
 const __filename = fileURLToPath(import.meta.url);
@@ -93,6 +93,65 @@ const requireAdminOrLevel1 = (req: AuthRequest, res: Response, next: NextFunctio
     return res.status(403).json({ message: "دسترسی مدیر یا کاربر سطح ۱ مورد نیاز است" });
   }
   next();
+};
+
+// Helper functions for conversation thread management
+interface ConversationMessage {
+  id: string;
+  message: string;
+  createdAt: string;
+  isAdmin: boolean;
+  userName: string;
+}
+
+const parseConversationThread = (adminReply: string | null): ConversationMessage[] => {
+  if (!adminReply) return [];
+  
+  try {
+    // Try to parse as JSON array (new format)
+    const parsed = JSON.parse(adminReply);
+    if (Array.isArray(parsed)) {
+      return parsed;
+    }
+    // If it's not an array, treat as legacy single response
+    return [{
+      id: `legacy_${Date.now()}`,
+      message: adminReply,
+      createdAt: new Date().toISOString(),
+      isAdmin: true,
+      userName: 'پشتیبانی'
+    }];
+  } catch {
+    // If parsing fails, treat as legacy single response
+    return [{
+      id: `legacy_${Date.now()}`,
+      message: adminReply,
+      createdAt: new Date().toISOString(),
+      isAdmin: true,
+      userName: 'پشتیبانی'
+    }];
+  }
+};
+
+const addMessageToThread = (
+  existingThread: ConversationMessage[], 
+  message: string,
+  isAdmin: boolean,
+  userName: string
+): ConversationMessage[] => {
+  const newMessage: ConversationMessage = {
+    id: `msg_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`,
+    message: message.trim(),
+    createdAt: new Date().toISOString(),
+    isAdmin,
+    userName
+  };
+  
+  return [...existingThread, newMessage];
+};
+
+const serializeConversationThread = (thread: ConversationMessage[]): string => {
+  return JSON.stringify(thread);
 };
 
 export async function registerRoutes(app: Express): Promise<Server> {
@@ -425,21 +484,45 @@ export async function registerRoutes(app: Express): Promise<Server> {
   app.put("/api/tickets/:id/reply", authenticateToken, requireAdmin, async (req, res) => {
     try {
       const { id } = req.params;
-      const { adminReply } = req.body;
       
-      const ticket = await storage.updateTicket(id, {
-        adminReply,
+      // Validate request body using Zod schema
+      const validatedData = ticketReplySchema.parse({
+        message: req.body.adminReply || req.body.message
+      });
+      const { message } = validatedData;
+      
+      // Get current ticket
+      const ticket = await storage.getTicket(id);
+      if (!ticket) {
+        return res.status(404).json({ message: "تیکت یافت نشد" });
+      }
+      
+      // Parse existing conversation thread
+      const existingThread = parseConversationThread(ticket.adminReply);
+      
+      // Add new admin message to conversation thread
+      const updatedThread = addMessageToThread(existingThread, message, true, 'پشتیبانی');
+      
+      // Serialize conversation thread back to JSON
+      const serializedThread = serializeConversationThread(updatedThread);
+      
+      // Update ticket with new conversation thread
+      const updatedTicket = await storage.updateTicket(id, {
+        adminReply: serializedThread,
         adminReplyAt: new Date(),
         status: "read",
         lastResponseAt: new Date(),
       });
       
-      if (!ticket) {
+      if (!updatedTicket) {
         return res.status(404).json({ message: "تیکت یافت نشد" });
       }
 
-      res.json(ticket);
+      res.json(updatedTicket);
     } catch (error) {
+      if (error instanceof z.ZodError) {
+        return res.status(400).json({ message: "داده های ورودی نامعتبر است", errors: error.errors });
+      }
       res.status(500).json({ message: "خطا در پاسخ به تیکت" });
     }
   });
@@ -456,6 +539,72 @@ export async function registerRoutes(app: Express): Promise<Server> {
       res.json({ message: "تیکت با موفقیت حذف شد" });
     } catch (error) {
       res.status(500).json({ message: "خطا در حذف تیکت" });
+    }
+  });
+
+  // User-specific tickets with details
+  app.get("/api/my-tickets", authenticateToken, async (req: AuthRequest, res) => {
+    try {
+      const tickets = await storage.getTicketsByUser(req.user!.id);
+      
+      // For each ticket, parse the conversation thread
+      const ticketsWithResponses = tickets.map(ticket => ({
+        ...ticket,
+        responses: parseConversationThread(ticket.adminReply)
+      }));
+      
+      res.json(ticketsWithResponses);
+    } catch (error) {
+      res.status(500).json({ message: "خطا در دریافت تیکت‌ها" });
+    }
+  });
+
+  // User reply to ticket (POST version for users)
+  app.post("/api/tickets/:id/reply", authenticateToken, async (req: AuthRequest, res) => {
+    try {
+      const { id } = req.params;
+      
+      // Validate request body using Zod schema
+      const validatedData = ticketReplySchema.parse(req.body);
+      const { message } = validatedData;
+      
+      // Check if ticket belongs to user or user is admin
+      const ticket = await storage.getTicket(id);
+      if (!ticket) {
+        return res.status(404).json({ message: "تیکت یافت نشد" });
+      }
+      
+      if (req.user!.role !== "admin" && ticket.userId !== req.user!.id) {
+        return res.status(403).json({ message: "دسترسی به این تیکت ندارید" });
+      }
+      
+      // Parse existing conversation thread
+      const existingThread = parseConversationThread(ticket.adminReply);
+      
+      // Determine user name and admin status
+      const isAdmin = req.user!.role === "admin";
+      const userName = isAdmin ? 'پشتیبانی' : `${req.user!.firstName} ${req.user!.lastName}`;
+      
+      // Add new message to conversation thread
+      const updatedThread = addMessageToThread(existingThread, message, isAdmin, userName);
+      
+      // Serialize conversation thread back to JSON
+      const serializedThread = serializeConversationThread(updatedThread);
+      
+      // Update ticket with new conversation thread
+      const updatedTicket = await storage.updateTicket(id, {
+        adminReply: serializedThread,
+        adminReplyAt: new Date(),
+        status: "read",
+        lastResponseAt: new Date(),
+      });
+      
+      res.json(updatedTicket);
+    } catch (error) {
+      if (error instanceof z.ZodError) {
+        return res.status(400).json({ message: "داده های ورودی نامعتبر است", errors: error.errors });
+      }
+      res.status(500).json({ message: "خطا در ارسال پاسخ" });
     }
   });
 

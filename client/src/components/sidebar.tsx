@@ -30,6 +30,7 @@ export function Sidebar() {
   const [inventoryOpen, setInventoryOpen] = useState(false);
   const [whatsappOpen, setWhatsappOpen] = useState(false);
   const [settingsOpen, setSettingsOpen] = useState(false);
+  const [ticketsOpen, setTicketsOpen] = useState(false);
 
   const isActive = (path: string) => location === path;
 
@@ -41,8 +42,11 @@ export function Sidebar() {
 
   const userMenuItems = [
     { path: "/", label: "پیشخوان", icon: Home },
-    { path: "/profile", label: "اطلاعات کاربری", icon: User },
-    { path: "/send-ticket", label: "ارسال تیکت", icon: Send },
+  ];
+
+  const ticketItems = [
+    { path: "/send-ticket", label: "ارسال تیکت جدید", icon: Send },
+    { path: "/my-tickets", label: "تیکت‌ها", icon: Ticket },
   ];
 
   const inventoryItems = [
@@ -68,7 +72,9 @@ export function Sidebar() {
           <div className="w-10 h-10 bg-primary rounded-lg flex items-center justify-center">
             <Store className="text-primary-foreground" />
           </div>
-          <h2 className="mr-3 text-lg font-bold text-foreground">پنل مدیریت</h2>
+          <h2 className="mr-3 text-lg font-bold text-foreground">
+            {user?.role === "admin" ? "پنل مدیریت" : "پنل کاربری"}
+          </h2>
         </div>
       </div>
       
@@ -112,6 +118,46 @@ export function Sidebar() {
               </Link>
             </li>
           ))}
+          
+          {/* Tickets Submenu */}
+          {user?.role !== "admin" && (
+            <li>
+              <Collapsible open={ticketsOpen} onOpenChange={setTicketsOpen}>
+                <CollapsibleTrigger asChild>
+                  <Button
+                    variant="ghost"
+                    className="w-full justify-start"
+                    data-testid="button-tickets-toggle"
+                  >
+                    <MessageSquare className="w-5 h-5 ml-2" />
+                    تیکت‌ها
+                    <ChevronDown className={cn(
+                      "w-4 h-4 mr-auto transition-transform",
+                      ticketsOpen && "rotate-180"
+                    )} />
+                  </Button>
+                </CollapsibleTrigger>
+                <CollapsibleContent className="mr-6 space-y-1">
+                  {ticketItems.map((item) => (
+                    <Link key={item.path} href={item.path}>
+                      <Button
+                        variant={isActive(item.path) ? "default" : "ghost"}
+                        size="sm"
+                        className={cn(
+                          "w-full justify-start",
+                          isActive(item.path) && "bg-primary text-primary-foreground"
+                        )}
+                        data-testid={`link-${item.path.substring(1)}`}
+                      >
+                        <item.icon className="w-4 h-4 ml-2" />
+                        {item.label}
+                      </Button>
+                    </Link>
+                  ))}
+                </CollapsibleContent>
+              </Collapsible>
+            </li>
+          )}
           
           {/* Inventory Submenu */}
           {user?.role !== "admin" && (
@@ -232,35 +278,42 @@ export function Sidebar() {
               </CollapsibleContent>
             </Collapsible>
           </li>
+
+          {/* User Profile - After WhatsApp */}
+          {user?.role !== "admin" && (
+            <li>
+              <Link href="/profile">
+                <Button
+                  variant={isActive("/profile") ? "default" : "ghost"}
+                  className={cn(
+                    "w-full justify-start",
+                    isActive("/profile") && "bg-primary text-primary-foreground"
+                  )}
+                  data-testid="link-profile"
+                >
+                  <User className="w-5 h-5 ml-2" />
+                  اطلاعات کاربری
+                </Button>
+              </Link>
+            </li>
+          )}
+
+          {/* Logout - After User Profile */}
+          {user?.role !== "admin" && (
+            <li>
+              <Button
+                variant="ghost"
+                onClick={logout}
+                className="w-full justify-start text-destructive hover:text-destructive hover:bg-destructive/10"
+                data-testid="button-sidebar-logout"
+              >
+                <LogOut className="w-5 h-5 ml-2" />
+                خروج
+              </Button>
+            </li>
+          )}
         </ul>
       </nav>
-      
-      {/* User Info */}
-      <div className="p-4 border-t border-border" data-testid="section-user-profile">
-        <div className="flex items-center">
-          <Avatar data-testid="img-profile-picture">
-            <AvatarImage src={user?.profilePicture || undefined} />
-            <AvatarFallback>
-              <User className="h-4 w-4" />
-            </AvatarFallback>
-          </Avatar>
-          <div className="mr-3 flex-1">
-            <p className="text-sm font-medium text-foreground" data-testid="text-sidebar-user-name">
-              {user?.firstName} {user?.lastName}
-            </p>
-            <p className="text-xs text-muted-foreground" data-testid="text-sidebar-user-phone">{user?.phone}</p>
-          </div>
-          <Button
-            variant="ghost"
-            size="sm"
-            onClick={logout}
-            className="text-muted-foreground hover:text-foreground"
-            data-testid="button-logout"
-          >
-            <LogOut className="h-4 w-4" />
-          </Button>
-        </div>
-      </div>
     </aside>
   );
 }

@@ -15,6 +15,7 @@ import WhatsappSettings from "@/pages/admin/whatsapp-settings";
 import AITokenSettings from "@/pages/admin/ai-token";
 import Profile from "@/pages/user/profile";
 import SendTicket from "@/pages/user/send-ticket";
+import MyTickets from "@/pages/user/my-tickets";
 import SendMessage from "@/pages/user/send-message";
 import AddProduct from "@/pages/user/add-product";
 import ProductList from "@/pages/user/product-list";
@@ -102,6 +103,7 @@ function Router() {
       <Route path="/reports" component={() => <AdminOrLevel1Route component={Reports} />} />
       <Route path="/profile" component={() => <ProtectedRoute component={Profile} />} />
       <Route path="/send-ticket" component={() => <ProtectedRoute component={SendTicket} />} />
+      <Route path="/my-tickets" component={() => <ProtectedRoute component={MyTickets} />} />
       <Route path="/add-product" component={() => <ProtectedRoute component={AddProduct} />} />
       <Route path="/products" component={() => <ProtectedRoute component={ProductList} />} />
       <Route component={NotFound} />
