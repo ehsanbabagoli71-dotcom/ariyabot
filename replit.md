@@ -6,6 +6,18 @@ This is a modern Persian e-commerce and support web application built with a ful
 
 Preferred communication style: Simple, everyday language.
 
+# Recent Changes
+
+- پروژه GitHub به محیط Replit منتقل شد و تنظیمات کامل انجام شد
+- database schema با جدول userSubscriptions برای ردیابی اشتراک کاربران گسترش یافت
+- صفحه مدیریت اشتراک ادمین با طراحی مدرن و قابلیت toggle بازطراحی شد (2025-09-10)
+- سیستم کاهش روزانه اشتراک پیاده‌سازی شد با API endpoint مخصوص
+- نمایش روزهای باقیمانده در پنل کاربری profile اضافه شد
+- اشتراک رایگان 7 روزه برای کاربران جدید فعال شد
+- User subscription API endpoints کامل شدند
+- storage interface ها برای عملیات user subscription به‌روزرسانی شدند
+- تغییرات database با موفقیت اعمال شد
+
 # System Architecture
 
 ## Frontend Architecture
