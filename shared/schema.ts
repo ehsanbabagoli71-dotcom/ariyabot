@@ -133,6 +133,9 @@ export const insertSubscriptionSchema = createInsertSchema(subscriptions).omit({
 export const insertProductSchema = createInsertSchema(products).omit({
   id: true,
   createdAt: true,
+}).extend({
+  priceBeforeDiscount: z.union([z.string(), z.number()]).transform(val => String(val)),
+  priceAfterDiscount: z.union([z.string(), z.number(), z.null()]).transform(val => val === null ? null : String(val)),
 });
 
 export const insertWhatsappSettingsSchema = createInsertSchema(whatsappSettings).omit({

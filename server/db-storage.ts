@@ -324,15 +324,30 @@ export class DbStorage implements IStorage {
   }
 
   // User Subscriptions
-  async getUserSubscription(userId: string): Promise<UserSubscription | undefined> {
-    const result = await db.select().from(userSubscriptions)
-      .where(and(
-        eq(userSubscriptions.userId, userId),
-        eq(userSubscriptions.status, 'active'),
-        gte(userSubscriptions.endDate, new Date())
-      ))
-      .orderBy(desc(userSubscriptions.endDate))
-      .limit(1);
+  async getUserSubscription(userId: string): Promise<UserSubscription & { subscriptionName?: string | null; subscriptionDescription?: string | null } | undefined> {
+    const result = await db.select({
+      id: userSubscriptions.id,
+      userId: userSubscriptions.userId,
+      subscriptionId: userSubscriptions.subscriptionId,
+      status: userSubscriptions.status,
+      startDate: userSubscriptions.startDate,
+      endDate: userSubscriptions.endDate,
+      remainingDays: userSubscriptions.remainingDays,
+      isTrialPeriod: userSubscriptions.isTrialPeriod,
+      createdAt: userSubscriptions.createdAt,
+      updatedAt: userSubscriptions.updatedAt,
+      subscriptionName: subscriptions.name,
+      subscriptionDescription: subscriptions.description,
+    })
+    .from(userSubscriptions)
+    .innerJoin(subscriptions, eq(userSubscriptions.subscriptionId, subscriptions.id))
+    .where(and(
+      eq(userSubscriptions.userId, userId),
+      eq(userSubscriptions.status, 'active'),
+      gte(userSubscriptions.endDate, new Date())
+    ))
+    .orderBy(desc(userSubscriptions.endDate))
+    .limit(1);
     return result[0];
   }
 

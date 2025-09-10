@@ -615,8 +615,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
         ...req.body,
         userId: req.user!.id,
         image: imageData,
-        priceBeforeDiscount: parseFloat(req.body.priceBeforeDiscount),
-        priceAfterDiscount: req.body.priceAfterDiscount ? parseFloat(req.body.priceAfterDiscount) : null,
+        priceBeforeDiscount: req.body.priceBeforeDiscount,
+        priceAfterDiscount: req.body.priceAfterDiscount || null,
         quantity: parseInt(req.body.quantity),
       });
       

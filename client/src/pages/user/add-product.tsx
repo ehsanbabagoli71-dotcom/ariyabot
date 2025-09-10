@@ -6,7 +6,7 @@ import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { Label } from "@/components/ui/label";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { Plus, RotateCcw, CloudUpload } from "lucide-react";
+import { Plus, RotateCcw, CloudUpload, Package, DollarSign, Hash, FileText } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { getAuthHeaders } from "@/lib/auth";
 
@@ -165,134 +165,159 @@ export default function AddProduct() {
 
   return (
     <DashboardLayout title="افزودن محصول">
-      <div className="space-y-6" data-testid="page-add-product">
-        <div>
-          <h2 className="text-2xl font-bold text-foreground">افزودن محصول جدید</h2>
-          <p className="text-muted-foreground">اطلاعات محصول جدید خود را وارد کنید</p>
+      <div className="max-w-4xl mx-auto space-y-4" data-testid="page-add-product">
+        {/* Header */}
+        <div className="mb-6">
+          <h2 className="text-xl font-bold text-foreground flex items-center gap-2">
+            <Package className="h-5 w-5 text-primary" />
+            افزودن محصول جدید
+          </h2>
+          <p className="text-sm text-muted-foreground mt-1">اطلاعات محصول جدید خود را وارد کنید</p>
         </div>
 
-        <Card>
-          <CardHeader>
-            <CardTitle className="flex items-center">
-              <Plus className="w-5 h-5 ml-2" />
-              محصول جدید
-            </CardTitle>
-          </CardHeader>
-          <CardContent>
-            <form onSubmit={handleSubmit} className="space-y-6" data-testid="form-add-product">
-              {/* Product Image Upload */}
-              <div>
-                <Label htmlFor="productImage">عکس محصول</Label>
-                <div className="border-2 border-dashed border-border rounded-lg p-8 text-center">
+        <form onSubmit={handleSubmit} className="space-y-4" data-testid="form-add-product">
+          <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
+            {/* Image Upload - Left */}
+            <Card className="lg:col-span-1">
+              <CardHeader className="pb-3">
+                <CardTitle className="text-sm flex items-center gap-2">
+                  <CloudUpload className="h-4 w-4" />
+                  تصویر محصول
+                </CardTitle>
+              </CardHeader>
+              <CardContent className="space-y-3">
+                <div 
+                  className="border-2 border-dashed border-border rounded-lg p-4 text-center transition-colors hover:border-primary/50 cursor-pointer"
+                  onClick={() => document.getElementById("productImage")?.click()}
+                >
                   {imagePreview ? (
-                    <div className="space-y-4">
+                    <div className="space-y-2">
                       <img
                         src={imagePreview}
-                        alt="پیش‌نمایش محصول"
-                        className="max-w-xs max-h-48 mx-auto rounded-lg object-cover"
+                        alt="پیش‌نمایش"
+                        className="w-full h-32 object-cover rounded-md"
                         data-testid="img-product-preview"
                       />
-                      <p className="text-sm text-muted-foreground">تصویر انتخاب شده</p>
+                      <p className="text-xs text-muted-foreground">کلیک برای تغییر</p>
                     </div>
                   ) : (
-                    <div className="space-y-4">
-                      <CloudUpload className="w-12 h-12 text-muted-foreground mx-auto" />
-                      <p className="text-muted-foreground">تصویر محصول را اینجا بکشید یا کلیک کنید</p>
+                    <div className="space-y-2">
+                      <CloudUpload className="h-8 w-8 text-muted-foreground mx-auto" />
+                      <p className="text-xs text-muted-foreground">انتخاب تصویر</p>
+                      <p className="text-xs text-muted-foreground">حداکثر 5MB</p>
                     </div>
                   )}
-                  <input
-                    type="file"
-                    id="productImage"
-                    accept="image/*"
-                    onChange={handleImageChange}
-                    className="hidden"
-                    data-testid="input-product-image"
-                  />
-                  <Label
-                    htmlFor="productImage"
-                    className="inline-block mt-4 px-4 py-2 bg-primary text-primary-foreground rounded-lg hover:bg-primary/90 transition-colors cursor-pointer"
-                    data-testid="button-select-image"
-                  >
-                    انتخاب فایل
-                  </Label>
                 </div>
-              </div>
-
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                <div>
-                  <Label htmlFor="productName">نام محصول *</Label>
-                  <Input
-                    id="productName"
-                    value={formData.name}
-                    onChange={(e) => setFormData({ ...formData, name: e.target.value })}
-                    placeholder="نام محصول را وارد کنید"
-                    required
-                    data-testid="input-product-name"
-                  />
-                </div>
-
-                <div>
-                  <Label htmlFor="quantity">تعداد *</Label>
-                  <Input
-                    id="quantity"
-                    type="number"
-                    value={formData.quantity}
-                    onChange={(e) => setFormData({ ...formData, quantity: e.target.value })}
-                    placeholder="تعداد موجودی"
-                    min="0"
-                    required
-                    data-testid="input-product-quantity"
-                  />
-                </div>
-              </div>
-
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                <div>
-                  <Label htmlFor="priceBeforeDiscount">قیمت قبل تخفیف (تومان) *</Label>
-                  <Input
-                    id="priceBeforeDiscount"
-                    type="number"
-                    value={formData.priceBeforeDiscount}
-                    onChange={(e) => setFormData({ ...formData, priceBeforeDiscount: e.target.value })}
-                    placeholder="۰"
-                    min="0"
-                    step="0.01"
-                    required
-                    data-testid="input-price-before-discount"
-                  />
-                </div>
-
-                <div>
-                  <Label htmlFor="priceAfterDiscount">قیمت بعد تخفیف (تومان)</Label>
-                  <Input
-                    id="priceAfterDiscount"
-                    type="number"
-                    value={formData.priceAfterDiscount}
-                    onChange={(e) => setFormData({ ...formData, priceAfterDiscount: e.target.value })}
-                    placeholder="۰"
-                    min="0"
-                    step="0.01"
-                    data-testid="input-price-after-discount"
-                  />
-                </div>
-              </div>
-
-              <div>
-                <Label htmlFor="description">توضیحات</Label>
-                <Textarea
-                  id="description"
-                  value={formData.description}
-                  onChange={(e) => setFormData({ ...formData, description: e.target.value })}
-                  placeholder="توضیحات کامل محصول را وارد کنید"
-                  rows={4}
-                  data-testid="textarea-product-description"
+                <input
+                  type="file"
+                  id="productImage"
+                  accept="image/*"
+                  onChange={handleImageChange}
+                  className="hidden"
+                  data-testid="input-product-image"
                 />
-              </div>
+              </CardContent>
+            </Card>
 
-              <div className="flex items-center space-x-4 space-x-reverse">
+            {/* Main Form - Right */}
+            <div className="lg:col-span-2 space-y-4">
+              {/* Basic Info */}
+              <Card>
+                <CardHeader className="pb-3">
+                  <CardTitle className="text-sm flex items-center gap-2">
+                    <FileText className="h-4 w-4" />
+                    اطلاعات اصلی
+                  </CardTitle>
+                </CardHeader>
+                <CardContent className="space-y-3">
+                  <div>
+                    <Label htmlFor="productName" className="text-xs">نام محصول *</Label>
+                    <Input
+                      id="productName"
+                      value={formData.name}
+                      onChange={(e) => setFormData({ ...formData, name: e.target.value })}
+                      placeholder="نام محصول..."
+                      className="h-8 text-sm"
+                      required
+                      data-testid="input-product-name"
+                    />
+                  </div>
+
+                  <div className="grid grid-cols-2 gap-3">
+                    <div>
+                      <Label htmlFor="quantity" className="text-xs flex items-center gap-1">
+                        <Hash className="h-3 w-3" />
+                        تعداد *
+                      </Label>
+                      <Input
+                        id="quantity"
+                        type="number"
+                        value={formData.quantity}
+                        onChange={(e) => setFormData({ ...formData, quantity: e.target.value })}
+                        placeholder="تعداد"
+                        className="h-8 text-sm"
+                        min="0"
+                        required
+                        data-testid="input-product-quantity"
+                      />
+                    </div>
+
+                    <div>
+                      <Label htmlFor="priceBeforeDiscount" className="text-xs flex items-center gap-1">
+                        <DollarSign className="h-3 w-3" />
+                        قیمت اصلی *
+                      </Label>
+                      <Input
+                        id="priceBeforeDiscount"
+                        type="number"
+                        value={formData.priceBeforeDiscount}
+                        onChange={(e) => setFormData({ ...formData, priceBeforeDiscount: e.target.value })}
+                        placeholder="قیمت (تومان)"
+                        className="h-8 text-sm"
+                        min="0"
+                        step="0.01"
+                        required
+                        data-testid="input-price-before-discount"
+                      />
+                    </div>
+                  </div>
+
+                  <div>
+                    <Label htmlFor="priceAfterDiscount" className="text-xs">قیمت تخفیف‌دار (اختیاری)</Label>
+                    <Input
+                      id="priceAfterDiscount"
+                      type="number"
+                      value={formData.priceAfterDiscount}
+                      onChange={(e) => setFormData({ ...formData, priceAfterDiscount: e.target.value })}
+                      placeholder="قیمت با تخفیف (تومان)"
+                      className="h-8 text-sm"
+                      min="0"
+                      step="0.01"
+                      data-testid="input-price-after-discount"
+                    />
+                  </div>
+
+                  <div>
+                    <Label htmlFor="description" className="text-xs">توضیحات</Label>
+                    <Textarea
+                      id="description"
+                      value={formData.description}
+                      onChange={(e) => setFormData({ ...formData, description: e.target.value })}
+                      placeholder="توضیحات محصول..."
+                      className="text-sm resize-none"
+                      rows={3}
+                      data-testid="textarea-product-description"
+                    />
+                  </div>
+                </CardContent>
+              </Card>
+
+              {/* Action Buttons */}
+              <div className="flex items-center gap-3">
                 <Button
                   type="submit"
                   disabled={createProductMutation.isPending}
+                  className="flex-1 h-9"
                   data-testid="button-add-product"
                 >
                   <Plus className="w-4 h-4 ml-2" />
@@ -302,15 +327,16 @@ export default function AddProduct() {
                   type="button"
                   variant="outline"
                   onClick={handleReset}
+                  className="h-9"
                   data-testid="button-reset-product-form"
                 >
                   <RotateCcw className="w-4 h-4 ml-2" />
-                  پاک کردن فرم
+                  پاک کردن
                 </Button>
               </div>
-            </form>
-          </CardContent>
-        </Card>
+            </div>
+          </div>
+        </form>
       </div>
     </DashboardLayout>
   );

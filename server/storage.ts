@@ -55,7 +55,7 @@ export interface IStorage {
   updateAiTokenSettings(settings: InsertAiTokenSettings): Promise<AiTokenSettings>;
   
   // User Subscriptions
-  getUserSubscription(userId: string): Promise<UserSubscription | undefined>;
+  getUserSubscription(userId: string): Promise<UserSubscription & { subscriptionName?: string | null; subscriptionDescription?: string | null } | undefined>;
   getUserSubscriptionById(id: string): Promise<UserSubscription | undefined>;
   getUserSubscriptionsByUserId(userId: string): Promise<UserSubscription[]>;
   getAllUserSubscriptions(): Promise<UserSubscription[]>;
@@ -276,7 +276,7 @@ export class MemStorage implements IStorage {
       priceAfterDiscount: insertSubscription.priceAfterDiscount || null,
       features: insertSubscription.features || null,
       isActive: insertSubscription.isActive !== undefined ? insertSubscription.isActive : true,
-      isDefault: insertSubscription.isDefault !== undefined ? insertSubscription.isDefault : false,
+      isDefault: false,
       createdAt: new Date(),
     };
     this.subscriptions.set(id, subscription);
@@ -438,8 +438,16 @@ export class MemStorage implements IStorage {
   }
 
   // User Subscriptions
-  async getUserSubscription(userId: string): Promise<UserSubscription | undefined> {
-    return Array.from(this.userSubscriptions.values()).find(sub => sub.userId === userId && sub.status === 'active');
+  async getUserSubscription(userId: string): Promise<UserSubscription & { subscriptionName?: string | null; subscriptionDescription?: string | null } | undefined> {
+    const userSub = Array.from(this.userSubscriptions.values()).find(sub => sub.userId === userId && sub.status === 'active');
+    if (!userSub) return undefined;
+    
+    const subscription = this.subscriptions.get(userSub.subscriptionId);
+    return {
+      ...userSub,
+      subscriptionName: subscription?.name,
+      subscriptionDescription: subscription?.description,
+    };
   }
 
   async getUserSubscriptionsByUserId(userId: string): Promise<UserSubscription[]> {

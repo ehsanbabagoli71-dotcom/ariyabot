@@ -19,7 +19,8 @@ import {
   ChevronDown,
   LogOut,
   BarChart3,
-  Bot
+  Bot,
+  Home
 } from "lucide-react";
 import { useAuth } from "@/hooks/use-auth";
 
@@ -39,6 +40,7 @@ export function Sidebar() {
   ];
 
   const userMenuItems = [
+    { path: "/", label: "پیشخوان", icon: Home },
     { path: "/profile", label: "اطلاعات کاربری", icon: User },
     { path: "/send-ticket", label: "ارسال تیکت", icon: Send },
   ];

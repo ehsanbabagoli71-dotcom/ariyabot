@@ -241,7 +241,6 @@ export default function UserManagement() {
                     <TableHead className="text-right">نام</TableHead>
                     <TableHead className="text-right">ایمیل</TableHead>
                     <TableHead className="text-right">شماره تلفن</TableHead>
-                    <TableHead className="text-right">نقش</TableHead>
                     <TableHead className="text-right">نوع اشتراک</TableHead>
                     <TableHead className="text-right">روزهای باقیمانده</TableHead>
                     <TableHead className="text-right">تاریخ عضویت</TableHead>
@@ -262,9 +261,6 @@ export default function UserManagement() {
                       </TableCell>
                       <TableCell className="text-muted-foreground" data-testid={`text-user-phone-${user.id}`}>
                         {user.phone}
-                      </TableCell>
-                      <TableCell data-testid={`badge-user-role-${user.id}`}>
-                        {getRoleBadge(user.role)}
                       </TableCell>
                       <TableCell className="text-muted-foreground" data-testid={`text-user-subscription-${user.id}`}>
                         {user.subscription ? (

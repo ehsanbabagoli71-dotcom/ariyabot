@@ -7,6 +7,7 @@ import { useAuth } from "@/hooks/use-auth";
 import Login from "@/pages/login";
 import Register from "@/pages/register";
 import Dashboard from "@/pages/dashboard";
+import UserDashboard from "@/pages/user/dashboard";
 import UserManagement from "@/pages/admin/user-management";
 import TicketManagement from "@/pages/admin/ticket-management";
 import Subscriptions from "@/pages/admin/subscriptions";
@@ -87,7 +88,11 @@ function Router() {
     <Switch>
       <Route path="/login" component={Login} />
       <Route path="/register" component={Register} />
-      <Route path="/" component={() => user ? <ProtectedRoute component={Dashboard} /> : <Login />} />
+      <Route path="/" component={() => user ? 
+        user.role === "admin" 
+          ? <ProtectedRoute component={Dashboard} /> 
+          : <ProtectedRoute component={UserDashboard} />
+        : <Login />} />
       <Route path="/users" component={() => <AdminRoute component={UserManagement} />} />
       <Route path="/tickets" component={() => <AdminRoute component={TicketManagement} />} />
       <Route path="/subscriptions" component={() => <AdminRoute component={Subscriptions} />} />
