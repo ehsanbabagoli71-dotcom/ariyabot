@@ -36,6 +36,14 @@ Preferred communication style: Simple, everyday language.
   - نمایش نشان آزمایشی برای اشتراک‌های trial period
   - رنگ‌بندی هشدار برای کاربران با روزهای کم باقیمانده (قرمز ≤۳ روز، نارنجی ≤۷ روز)
   - Type safety کامل با UserWithSubscription interface در frontend
+- **پیاده‌سازی سیستم جامع تیکت‌ها با submenu و conversation threads (2025-09-10)**
+  - انتقال بخش "ارسال تیکت" به submenu در sidebar با دو گزینه: "ارسال تیکت جدید" و "تیکت‌ها"
+  - ایجاد صفحه "تیکت‌های من" برای نمایش لیست تیکت‌های کاربر
+  - پیاده‌سازی conversation threads با حفظ تاریخچه کامل پاسخ‌ها
+  - تشخیص صحیح admin/user در نمایش conversation
+  - API endpoint /api/my-tickets برای دریافت تیکت‌های کاربر
+  - API endpoint /api/tickets/:id/reply برای پاسخ‌دهی با Zod validation
+  - حفظ backward compatibility با tickets موجود
 
 # System Architecture
 
