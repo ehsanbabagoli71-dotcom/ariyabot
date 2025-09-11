@@ -114,7 +114,7 @@ export const categories = pgTable("categories", {
   id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
   name: text("name").notNull(),
   description: text("description"),
-  parentId: varchar("parent_id").references(() => categories.id),
+  parentId: varchar("parent_id"),
   order: integer("order").notNull().default(0),
   isActive: boolean("is_active").notNull().default(true),
   createdAt: timestamp("created_at").defaultNow(),
@@ -185,7 +185,7 @@ export const insertCategorySchema = createInsertSchema(categories).omit({
 export const updateCategoryOrderSchema = z.object({
   categoryId: z.string().uuid(),
   newOrder: z.number().int().min(0),
-  newParentId: z.string().uuid().optional(),
+  newParentId: z.string().uuid().nullable().optional(),
 });
 
 // Ticket reply validation schema

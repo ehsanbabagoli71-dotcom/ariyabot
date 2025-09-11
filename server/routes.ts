@@ -1144,8 +1144,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
-  // Get single category
-  app.get("/api/categories/:id", authenticateToken, requireAdmin, async (req, res) => {
+  // Get single category (UUID constrained)
+  app.get("/api/categories/:id([0-9a-fA-F-]{36})", authenticateToken, requireAdmin, async (req, res) => {
     try {
       const category = await storage.getCategory(req.params.id);
       if (!category) {
@@ -1157,8 +1157,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
-  // Update category
-  app.put("/api/categories/:id", authenticateToken, requireAdmin, async (req, res) => {
+  // Update category (UUID constrained)
+  app.put("/api/categories/:id([0-9a-fA-F-]{36})", authenticateToken, requireAdmin, async (req, res) => {
     try {
       const updates = req.body;
       const category = await storage.updateCategory(req.params.id, updates);
@@ -1171,8 +1171,34 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
-  // Delete category
-  app.delete("/api/categories/:id", authenticateToken, requireAdmin, async (req, res) => {
+  // Reorder categories (must be before :id routes)
+  app.put("/api/categories/reorder", authenticateToken, requireAdmin, async (req, res) => {
+    try {
+      const updates = z.array(updateCategoryOrderSchema).parse(req.body);
+      
+      // Map client format to storage format
+      const mappedUpdates = updates.map(update => ({
+        id: update.categoryId,
+        order: update.newOrder,
+        parentId: update.newParentId || null
+      }));
+      
+      const success = await storage.reorderCategories(mappedUpdates);
+      if (!success) {
+        return res.status(400).json({ message: "خطا در تغییر ترتیب دسته‌بندی‌ها" });
+      }
+      
+      res.json({ message: "ترتیب دسته‌بندی‌ها با موفقیت بروزرسانی شد" });
+    } catch (error) {
+      if (error instanceof z.ZodError) {
+        return res.status(400).json({ message: "داده‌های ورودی نامعتبر است", errors: error.errors });
+      }
+      res.status(500).json({ message: "خطا در تغییر ترتیب دسته‌بندی‌ها" });
+    }
+  });
+
+  // Delete category (UUID constrained)
+  app.delete("/api/categories/:id([0-9a-fA-F-]{36})", authenticateToken, requireAdmin, async (req, res) => {
     try {
       const success = await storage.deleteCategory(req.params.id);
       if (!success) {
@@ -1181,23 +1207,6 @@ export async function registerRoutes(app: Express): Promise<Server> {
       res.json({ message: "دسته‌بندی با موفقیت حذف شد" });
     } catch (error) {
       res.status(500).json({ message: "خطا در حذف دسته‌بندی" });
-    }
-  });
-
-  // Reorder categories
-  app.put("/api/categories/reorder", authenticateToken, requireAdmin, async (req, res) => {
-    try {
-      const updates = z.array(updateCategoryOrderSchema).parse(req.body);
-      const success = await storage.reorderCategories(updates);
-      if (!success) {
-        return res.status(400).json({ message: "خطا در تغییر ترتیب دسته‌بندی‌ها" });
-      }
-      res.json({ message: "ترتیب دسته‌بندی‌ها با موفقیت بروزرسانی شد" });
-    } catch (error) {
-      if (error instanceof z.ZodError) {
-        return res.status(400).json({ message: "داده‌های ورودی نامعتبر است", errors: error.errors });
-      }
-      res.status(500).json({ message: "خطا در تغییر ترتیب دسته‌بندی‌ها" });
     }
   });
 

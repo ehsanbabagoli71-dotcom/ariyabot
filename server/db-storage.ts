@@ -35,12 +35,12 @@ export class DbStorage implements IStorage {
         .limit(1);
 
       if (existingAdmin.length === 0) {
-        // Use environment variable for admin password, fallback to random password
-        const adminPassword = process.env.ADMIN_PASSWORD || this.generateRandomPassword();
+        // Use environment variable for admin password, fallback to default password
+        const adminPassword = process.env.ADMIN_PASSWORD || "admin123";
         if (!process.env.ADMIN_PASSWORD) {
-          console.log("🔑 Admin password auto-generated. Username: ehsan");
-          console.log("⚠️  Set ADMIN_PASSWORD environment variable for custom password");
-          console.log("💡 For development: set NODE_ENV=development to see generated password");
+          console.log("🔑 کاربر ادمین ایجاد شد - نام کاربری: ehsan");
+          console.log("🔑 رمز عبور پیش‌فرض: admin123");
+          console.log("⚠️  برای تغییر رمز عبور، متغیر ADMIN_PASSWORD را تنظیم کنید");
         }
         
         const hashedPassword = await bcrypt.hash(adminPassword, 10);
