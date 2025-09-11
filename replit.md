@@ -8,11 +8,15 @@ Preferred communication style: Simple, everyday language.
 
 # Recent Changes
 
+- **مشکل login با کیبورد فارسی حل شد و برنامه کاملاً عملیاتی است (2025-09-11)**
+  - مشکل تبدیل ارقام فارسی به انگلیسی در password verification شناسایی و حل شد  
+  - تابع normalizeDigits اضافه شد که ارقام فارسی/عربی را به انگلیسی تبدیل می‌کند
+  - Admin user با username: ehsan و password: admin123 کاملاً کارکرد است
+  - server بر روی port 5000 با موفقیت در حال اجرا است
 - **پروژه GitHub به محیط Replit منتقل شد و تنظیمات کامل انجام شد (2025-09-10)**
   - کلیه dependencies نصب شدند (tsx اضافه شد)
   - PostgreSQL database ایجاد و schema اعمال شد
   - workflow بر روی port 5000 تنظیم شد
-  - Admin user با username: ehsan و password: admin123 تنظیم شد
   - برنامه آماده استفاده است
 - database schema با جدول userSubscriptions برای ردیابی اشتراک کاربران گسترش یافت
 - صفحه مدیریت اشتراک ادمین با طراحی مدرن و قابلیت toggle بازطراحی شد (2025-09-10)
