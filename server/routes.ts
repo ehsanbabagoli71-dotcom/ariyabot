@@ -6,7 +6,7 @@ import jwt from "jsonwebtoken";
 import multer from "multer";
 import path from "path";
 import { fileURLToPath } from "url";
-import { insertUserSchema, insertTicketSchema, insertSubscriptionSchema, insertProductSchema, insertWhatsappSettingsSchema, insertSentMessageSchema, insertReceivedMessageSchema, insertAiTokenSettingsSchema, insertUserSubscriptionSchema, ticketReplySchema, type User } from "@shared/schema";
+import { insertUserSchema, insertTicketSchema, insertSubscriptionSchema, insertProductSchema, insertWhatsappSettingsSchema, insertSentMessageSchema, insertReceivedMessageSchema, insertAiTokenSettingsSchema, insertUserSubscriptionSchema, insertCategorySchema, updateCategoryOrderSchema, ticketReplySchema, type User } from "@shared/schema";
 import { z } from "zod";
 
 const __filename = fileURLToPath(import.meta.url);
@@ -225,16 +225,28 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
+  // Helper function to normalize Persian/Arabic digits to ASCII
+  const normalizeDigits = (text: string): string => {
+    return text
+      .replace(/[۰-۹]/g, (d) => '۰۱۲۳۴۵۶۷۸۹'.indexOf(d).toString()) // Persian digits
+      .replace(/[٠-٩]/g, (d) => '٠١٢٣٤٥٦٧٨٩'.indexOf(d).toString()) // Arabic digits
+      .trim();
+  };
+
   app.post("/api/auth/login", async (req, res) => {
     try {
       const { email, password } = req.body;
       
-      const user = await storage.getUserByEmailOrUsername(email);
+      // Normalize identifier and password to handle Persian/Arabic digits
+      const normalizedIdentifier = normalizeDigits(email || '');
+      const normalizedPassword = normalizeDigits(password || '');
+      
+      const user = await storage.getUserByEmailOrUsername(normalizedIdentifier);
       if (!user || !user.password) {
         return res.status(401).json({ message: "نام کاربری/ایمیل یا رمز عبور اشتباه است" });
       }
 
-      const isValidPassword = await bcrypt.compare(password, user.password);
+      const isValidPassword = await bcrypt.compare(normalizedPassword, user.password);
       if (!isValidPassword) {
         return res.status(401).json({ message: "نام کاربری/ایمیل یا رمز عبور اشتباه است" });
       }
@@ -1083,6 +1095,109 @@ export async function registerRoutes(app: Express): Promise<Server> {
     } catch (error) {
       console.error("خطا در ثبت اشتراک:", error);
       res.status(500).json({ message: "خطا در ثبت اشتراک" });
+    }
+  });
+
+  // Categories API
+  // Get all categories
+  app.get("/api/categories", authenticateToken, requireAdmin, async (req, res) => {
+    try {
+      const categories = await storage.getAllCategories();
+      res.json(categories);
+    } catch (error) {
+      res.status(500).json({ message: "خطا در دریافت دسته‌بندی‌ها" });
+    }
+  });
+
+  // Get category tree
+  app.get("/api/categories/tree", authenticateToken, requireAdmin, async (req, res) => {
+    try {
+      const tree = await storage.getCategoryTree();
+      res.json(tree);
+    } catch (error) {
+      res.status(500).json({ message: "خطا در دریافت ساختار درختی دسته‌بندی‌ها" });
+    }
+  });
+
+  // Get categories by parent
+  app.get("/api/categories/by-parent/:parentId?", authenticateToken, requireAdmin, async (req, res) => {
+    try {
+      const parentId = req.params.parentId === 'null' ? null : req.params.parentId;
+      const categories = await storage.getCategoriesByParent(parentId);
+      res.json(categories);
+    } catch (error) {
+      res.status(500).json({ message: "خطا در دریافت زیر دسته‌بندی‌ها" });
+    }
+  });
+
+  // Create category
+  app.post("/api/categories", authenticateToken, requireAdmin, async (req, res) => {
+    try {
+      const categoryData = insertCategorySchema.parse(req.body);
+      const category = await storage.createCategory(categoryData);
+      res.json(category);
+    } catch (error) {
+      if (error instanceof z.ZodError) {
+        return res.status(400).json({ message: "داده‌های ورودی نامعتبر است", errors: error.errors });
+      }
+      res.status(500).json({ message: "خطا در ایجاد دسته‌بندی" });
+    }
+  });
+
+  // Get single category
+  app.get("/api/categories/:id", authenticateToken, requireAdmin, async (req, res) => {
+    try {
+      const category = await storage.getCategory(req.params.id);
+      if (!category) {
+        return res.status(404).json({ message: "دسته‌بندی یافت نشد" });
+      }
+      res.json(category);
+    } catch (error) {
+      res.status(500).json({ message: "خطا در دریافت دسته‌بندی" });
+    }
+  });
+
+  // Update category
+  app.put("/api/categories/:id", authenticateToken, requireAdmin, async (req, res) => {
+    try {
+      const updates = req.body;
+      const category = await storage.updateCategory(req.params.id, updates);
+      if (!category) {
+        return res.status(404).json({ message: "دسته‌بندی یافت نشد" });
+      }
+      res.json(category);
+    } catch (error) {
+      res.status(500).json({ message: "خطا در بروزرسانی دسته‌بندی" });
+    }
+  });
+
+  // Delete category
+  app.delete("/api/categories/:id", authenticateToken, requireAdmin, async (req, res) => {
+    try {
+      const success = await storage.deleteCategory(req.params.id);
+      if (!success) {
+        return res.status(404).json({ message: "دسته‌بندی یافت نشد" });
+      }
+      res.json({ message: "دسته‌بندی با موفقیت حذف شد" });
+    } catch (error) {
+      res.status(500).json({ message: "خطا در حذف دسته‌بندی" });
+    }
+  });
+
+  // Reorder categories
+  app.put("/api/categories/reorder", authenticateToken, requireAdmin, async (req, res) => {
+    try {
+      const updates = z.array(updateCategoryOrderSchema).parse(req.body);
+      const success = await storage.reorderCategories(updates);
+      if (!success) {
+        return res.status(400).json({ message: "خطا در تغییر ترتیب دسته‌بندی‌ها" });
+      }
+      res.json({ message: "ترتیب دسته‌بندی‌ها با موفقیت بروزرسانی شد" });
+    } catch (error) {
+      if (error instanceof z.ZodError) {
+        return res.status(400).json({ message: "داده‌های ورودی نامعتبر است", errors: error.errors });
+      }
+      res.status(500).json({ message: "خطا در تغییر ترتیب دسته‌بندی‌ها" });
     }
   });
 

@@ -1,4 +1,4 @@
-import { type User, type InsertUser, type Ticket, type InsertTicket, type Subscription, type InsertSubscription, type Product, type InsertProduct, type WhatsappSettings, type InsertWhatsappSettings, type SentMessage, type InsertSentMessage, type ReceivedMessage, type InsertReceivedMessage, type AiTokenSettings, type InsertAiTokenSettings, type UserSubscription, type InsertUserSubscription } from "@shared/schema";
+import { type User, type InsertUser, type Ticket, type InsertTicket, type Subscription, type InsertSubscription, type Product, type InsertProduct, type WhatsappSettings, type InsertWhatsappSettings, type SentMessage, type InsertSentMessage, type ReceivedMessage, type InsertReceivedMessage, type AiTokenSettings, type InsertAiTokenSettings, type UserSubscription, type InsertUserSubscription, type Category, type InsertCategory } from "@shared/schema";
 import { randomUUID } from "crypto";
 import bcrypt from "bcryptjs";
 
@@ -65,6 +65,16 @@ export interface IStorage {
   updateRemainingDays(id: string, remainingDays: number): Promise<UserSubscription | undefined>;
   getActiveUserSubscriptions(): Promise<UserSubscription[]>;
   getExpiredUserSubscriptions(): Promise<UserSubscription[]>;
+  
+  // Categories  
+  getCategory(id: string): Promise<Category | undefined>;
+  getAllCategories(): Promise<Category[]>;
+  getCategoriesByParent(parentId: string | null): Promise<Category[]>;
+  getCategoryTree(): Promise<Category[]>;
+  createCategory(category: InsertCategory): Promise<Category>;
+  updateCategory(id: string, category: Partial<Category>): Promise<Category | undefined>;
+  deleteCategory(id: string): Promise<boolean>;
+  reorderCategories(updates: { id: string; order: number; parentId?: string | null }[]): Promise<boolean>;
 }
 
 export class MemStorage implements IStorage {
@@ -77,6 +87,7 @@ export class MemStorage implements IStorage {
   private receivedMessages: Map<string, ReceivedMessage>;
   private aiTokenSettings: AiTokenSettings | undefined;
   private userSubscriptions: Map<string, UserSubscription>;
+  private categories: Map<string, Category>;
 
   constructor() {
     this.users = new Map();
@@ -88,6 +99,7 @@ export class MemStorage implements IStorage {
     this.receivedMessages = new Map();
     this.aiTokenSettings = undefined;
     this.userSubscriptions = new Map();
+    this.categories = new Map();
     
     // Create default admin user
     this.initializeAdminUser();
@@ -516,6 +528,83 @@ export class MemStorage implements IStorage {
 
   async getExpiredUserSubscriptions(): Promise<UserSubscription[]> {
     return Array.from(this.userSubscriptions.values()).filter(sub => sub.status === 'expired');
+  }
+
+  // Categories
+  async getCategory(id: string): Promise<Category | undefined> {
+    return this.categories.get(id);
+  }
+
+  async getAllCategories(): Promise<Category[]> {
+    return Array.from(this.categories.values())
+      .sort((a, b) => a.order - b.order);
+  }
+
+  async getCategoriesByParent(parentId: string | null): Promise<Category[]> {
+    return Array.from(this.categories.values())
+      .filter(category => category.parentId === parentId)
+      .sort((a, b) => a.order - b.order);
+  }
+
+  async getCategoryTree(): Promise<Category[]> {
+    const allCategories = Array.from(this.categories.values())
+      .sort((a, b) => a.order - b.order);
+    
+    // Build tree structure (this is a simplified version, full tree building would be more complex)
+    return allCategories.filter(cat => cat.parentId === null);
+  }
+
+  async createCategory(insertCategory: InsertCategory): Promise<Category> {
+    const id = randomUUID();
+    const category: Category = {
+      ...insertCategory,
+      id,
+      description: insertCategory.description || null,
+      parentId: insertCategory.parentId || null,
+      order: insertCategory.order || 0,
+      isActive: insertCategory.isActive !== undefined ? insertCategory.isActive : true,
+      createdAt: new Date(),
+      updatedAt: new Date(),
+    };
+    this.categories.set(id, category);
+    return category;
+  }
+
+  async updateCategory(id: string, updates: Partial<Category>): Promise<Category | undefined> {
+    const category = this.categories.get(id);
+    if (!category) return undefined;
+    
+    const updatedCategory = { 
+      ...category, 
+      ...updates,
+      updatedAt: new Date()
+    };
+    this.categories.set(id, updatedCategory);
+    return updatedCategory;
+  }
+
+  async deleteCategory(id: string): Promise<boolean> {
+    return this.categories.delete(id);
+  }
+
+  async reorderCategories(updates: { id: string; order: number; parentId?: string | null }[]): Promise<boolean> {
+    try {
+      for (const update of updates) {
+        const category = this.categories.get(update.id);
+        if (category) {
+          const updatedCategory = {
+            ...category,
+            order: update.order,
+            parentId: update.parentId !== undefined ? update.parentId : category.parentId,
+            updatedAt: new Date()
+          };
+          this.categories.set(update.id, updatedCategory);
+        }
+      }
+      return true;
+    } catch (error) {
+      return false;
+    }
   }
 }
 

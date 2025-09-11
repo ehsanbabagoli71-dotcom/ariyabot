@@ -1,8 +1,8 @@
 import { Pool } from "pg";
 import { drizzle } from "drizzle-orm/node-postgres";
 import { eq, sql, desc, and, gte } from "drizzle-orm";
-import { users, tickets, subscriptions, products, whatsappSettings, sentMessages, receivedMessages, aiTokenSettings, userSubscriptions } from "@shared/schema";
-import { type User, type InsertUser, type Ticket, type InsertTicket, type Subscription, type InsertSubscription, type Product, type InsertProduct, type WhatsappSettings, type InsertWhatsappSettings, type SentMessage, type InsertSentMessage, type ReceivedMessage, type InsertReceivedMessage, type AiTokenSettings, type InsertAiTokenSettings, type UserSubscription, type InsertUserSubscription } from "@shared/schema";
+import { users, tickets, subscriptions, products, whatsappSettings, sentMessages, receivedMessages, aiTokenSettings, userSubscriptions, categories } from "@shared/schema";
+import { type User, type InsertUser, type Ticket, type InsertTicket, type Subscription, type InsertSubscription, type Product, type InsertProduct, type WhatsappSettings, type InsertWhatsappSettings, type SentMessage, type InsertSentMessage, type ReceivedMessage, type InsertReceivedMessage, type AiTokenSettings, type InsertAiTokenSettings, type UserSubscription, type InsertUserSubscription, type Category, type InsertCategory } from "@shared/schema";
 import { type IStorage } from "./storage";
 import bcrypt from "bcryptjs";
 
@@ -407,5 +407,66 @@ export class DbStorage implements IStorage {
     return await db.select().from(userSubscriptions)
       .where(eq(userSubscriptions.status, 'expired'))
       .orderBy(desc(userSubscriptions.createdAt));
+  }
+
+  // Categories
+  async getCategory(id: string): Promise<Category | undefined> {
+    const result = await db.select().from(categories).where(eq(categories.id, id)).limit(1);
+    return result[0];
+  }
+
+  async getAllCategories(): Promise<Category[]> {
+    return await db.select().from(categories)
+      .orderBy(categories.order);
+  }
+
+  async getCategoriesByParent(parentId: string | null): Promise<Category[]> {
+    return await db.select().from(categories)
+      .where(parentId === null ? sql`${categories.parentId} IS NULL` : eq(categories.parentId, parentId))
+      .orderBy(categories.order);
+  }
+
+  async getCategoryTree(): Promise<Category[]> {
+    // Get root categories (those with null parentId)
+    return await db.select().from(categories)
+      .where(sql`${categories.parentId} IS NULL`)
+      .orderBy(categories.order);
+  }
+
+  async createCategory(insertCategory: InsertCategory): Promise<Category> {
+    const result = await db.insert(categories).values(insertCategory).returning();
+    return result[0];
+  }
+
+  async updateCategory(id: string, updates: Partial<Category>): Promise<Category | undefined> {
+    const result = await db.update(categories)
+      .set({ ...updates, updatedAt: new Date() })
+      .where(eq(categories.id, id))
+      .returning();
+    return result[0];
+  }
+
+  async deleteCategory(id: string): Promise<boolean> {
+    const result = await db.delete(categories).where(eq(categories.id, id));
+    return result.rowCount! > 0;
+  }
+
+  async reorderCategories(updates: { id: string; order: number; parentId?: string | null }[]): Promise<boolean> {
+    try {
+      // Use a transaction to ensure all updates succeed or fail together
+      for (const update of updates) {
+        await db.update(categories)
+          .set({
+            order: update.order,
+            parentId: update.parentId !== undefined ? update.parentId : undefined,
+            updatedAt: new Date()
+          })
+          .where(eq(categories.id, update.id));
+      }
+      return true;
+    } catch (error) {
+      console.error('Error reordering categories:', error);
+      return false;
+    }
   }
 }

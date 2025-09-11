@@ -20,7 +20,8 @@ import {
   LogOut,
   BarChart3,
   Bot,
-  Home
+  Home,
+  FolderTree
 } from "lucide-react";
 import { useAuth } from "@/hooks/use-auth";
 
@@ -50,8 +51,9 @@ export function Sidebar() {
   ];
 
   const inventoryItems = [
-    { path: "/add-product", label: "افزودن محصول", icon: Plus },
-    { path: "/products", label: "لیست محصولات", icon: List },
+    { path: "/add-product", label: "افزودن محصول", icon: Plus, adminOnly: false },
+    { path: "/products", label: "لیست محصولات", icon: List, adminOnly: false },
+    { path: "/categories", label: "دسته بندی", icon: FolderTree, adminOnly: true },
   ];
 
   const whatsappItems = [
@@ -160,25 +162,25 @@ export function Sidebar() {
           )}
           
           {/* Inventory Submenu */}
-          {user?.role !== "admin" && (
-            <li>
-              <Collapsible open={inventoryOpen} onOpenChange={setInventoryOpen}>
-                <CollapsibleTrigger asChild>
-                  <Button
-                    variant="ghost"
-                    className="w-full justify-start"
-                    data-testid="button-inventory-toggle"
-                  >
-                    <Warehouse className="w-5 h-5 ml-2" />
-                    انبار
-                    <ChevronDown className={cn(
-                      "w-4 h-4 mr-auto transition-transform",
-                      inventoryOpen && "rotate-180"
-                    )} />
-                  </Button>
-                </CollapsibleTrigger>
-                <CollapsibleContent className="mr-6 space-y-1">
-                  {inventoryItems.map((item) => (
+          <li>
+            <Collapsible open={inventoryOpen} onOpenChange={setInventoryOpen}>
+              <CollapsibleTrigger asChild>
+                <Button
+                  variant="ghost"
+                  className="w-full justify-start"
+                  data-testid="button-inventory-toggle"
+                >
+                  <Warehouse className="w-5 h-5 ml-2" />
+                  انبار
+                  <ChevronDown className={cn(
+                    "w-4 h-4 mr-auto transition-transform",
+                    inventoryOpen && "rotate-180"
+                  )} />
+                </Button>
+              </CollapsibleTrigger>
+              <CollapsibleContent className="mr-6 space-y-1">
+                {inventoryItems.map((item) => (
+                  (!item.adminOnly || user?.role === "admin") && (
                     <Link key={item.path} href={item.path}>
                       <Button
                         variant={isActive(item.path) ? "default" : "ghost"}
@@ -193,11 +195,11 @@ export function Sidebar() {
                         {item.label}
                       </Button>
                     </Link>
-                  ))}
-                </CollapsibleContent>
-              </Collapsible>
-            </li>
-          )}
+                  )
+                ))}
+              </CollapsibleContent>
+            </Collapsible>
+          </li>
           
           {/* Settings Section - Admin Only */}
           {user?.role === "admin" && (
