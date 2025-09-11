@@ -772,10 +772,19 @@ export async function registerRoutes(app: Express): Promise<Server> {
         fs.unlinkSync((req as any).file.path);
       }
       
+      // Validate categoryId if provided
+      if (req.body.categoryId) {
+        const category = await storage.getCategory(req.body.categoryId);
+        if (!category || !category.isActive) {
+          return res.status(400).json({ message: "دسته‌بندی انتخاب شده معتبر نیست" });
+        }
+      }
+
       const validatedData = insertProductSchema.parse({
         ...req.body,
         userId: req.user!.id,
         image: imageData,
+        categoryId: req.body.categoryId || null,
         priceBeforeDiscount: req.body.priceBeforeDiscount,
         priceAfterDiscount: req.body.priceAfterDiscount || null,
         quantity: parseInt(req.body.quantity),
@@ -1100,7 +1109,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
   // Categories API
   // Get all categories
-  app.get("/api/categories", authenticateToken, requireAdmin, async (req, res) => {
+  app.get("/api/categories", authenticateToken, async (req, res) => {
     try {
       const categories = await storage.getAllCategories();
       res.json(categories);

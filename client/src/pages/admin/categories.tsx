@@ -109,7 +109,13 @@ function SortableCategory({ category, onEdit, onDelete, onToggleActive, expanded
               variant="ghost"
               size="sm"
               className="p-0 h-auto w-4 h-4"
-              onClick={() => toggleExpanded(category.id)}
+              onClick={(e) => {
+                e.stopPropagation();
+                toggleExpanded(category.id);
+              }}
+              onPointerDown={(e) => e.stopPropagation()}
+              onMouseDown={(e) => e.stopPropagation()}
+              onTouchStart={(e) => e.stopPropagation()}
               data-testid={`button-toggle-${category.id}`}
             >
               {isExpanded ? (
@@ -170,10 +176,14 @@ function SortableCategory({ category, onEdit, onDelete, onToggleActive, expanded
                   type="radio"
                   name={`status-${category.id}`}
                   checked={category.isActive}
-                  onChange={() => {
+                  onChange={(e) => {
+                    e.stopPropagation();
                     // Direct inline status change without opening dialog
                     onToggleActive(category.id, true);
                   }}
+                  onPointerDown={(e) => e.stopPropagation()}
+                  onMouseDown={(e) => e.stopPropagation()}
+                  onTouchStart={(e) => e.stopPropagation()}
                   disabled={isPending}
                   className="w-3 h-3"
                   data-testid={`radio-active-${category.id}`}
@@ -185,10 +195,14 @@ function SortableCategory({ category, onEdit, onDelete, onToggleActive, expanded
                   type="radio"
                   name={`status-${category.id}`}
                   checked={!category.isActive}
-                  onChange={() => {
+                  onChange={(e) => {
+                    e.stopPropagation();
                     // Direct inline status change without opening dialog
                     onToggleActive(category.id, false);
                   }}
+                  onPointerDown={(e) => e.stopPropagation()}
+                  onMouseDown={(e) => e.stopPropagation()}
+                  onTouchStart={(e) => e.stopPropagation()}
                   disabled={isPending}
                   className="w-3 h-3"
                   data-testid={`radio-inactive-${category.id}`}
@@ -200,7 +214,13 @@ function SortableCategory({ category, onEdit, onDelete, onToggleActive, expanded
             <Button
               variant="ghost"
               size="sm"
-              onClick={() => onEdit(category)}
+              onClick={(e) => {
+                e.stopPropagation();
+                onEdit(category);
+              }}
+              onPointerDown={(e) => e.stopPropagation()}
+              onMouseDown={(e) => e.stopPropagation()}
+              onTouchStart={(e) => e.stopPropagation()}
               className="h-6 w-6 p-0"
               data-testid={`button-edit-category-${category.id}`}
             >
@@ -209,7 +229,13 @@ function SortableCategory({ category, onEdit, onDelete, onToggleActive, expanded
             <Button
               variant="ghost"
               size="sm"
-              onClick={() => onDelete(category.id)}
+              onClick={(e) => {
+                e.stopPropagation();
+                onDelete(category.id);
+              }}
+              onPointerDown={(e) => e.stopPropagation()}
+              onMouseDown={(e) => e.stopPropagation()}
+              onTouchStart={(e) => e.stopPropagation()}
               className="h-6 w-6 p-0"
               data-testid={`button-delete-category-${category.id}`}
             >
@@ -264,7 +290,9 @@ export default function Categories() {
   const queryClient = useQueryClient();
 
   const sensors = useSensors(
-    useSensor(PointerSensor),
+    useSensor(PointerSensor, {
+      activationConstraint: { distance: 8 }
+    }),
     useSensor(KeyboardSensor, {
       coordinateGetter: sortableKeyboardCoordinates,
     })
@@ -601,7 +629,6 @@ export default function Categories() {
     <DashboardLayout title="مدیریت دسته‌بندی‌ها">
       <div className="space-y-6">
         <div className="flex items-center justify-between">
-          <h1 className="text-3xl font-bold" data-testid="page-title">مدیریت دسته‌بندی‌ها</h1>
         </div>
 
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">

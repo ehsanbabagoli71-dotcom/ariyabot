@@ -1,19 +1,22 @@
 import { useState } from "react";
-import { useMutation, useQueryClient } from "@tanstack/react-query";
+import { useMutation, useQueryClient, useQuery } from "@tanstack/react-query";
 import { DashboardLayout } from "@/components/dashboard-layout";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { Label } from "@/components/ui/label";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { Plus, RotateCcw, CloudUpload, Package, DollarSign, Hash, FileText } from "lucide-react";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { Plus, RotateCcw, CloudUpload, Package, DollarSign, Hash, FileText, FolderTree } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { getAuthHeaders } from "@/lib/auth";
+import type { Category } from "@shared/schema";
 
 export default function AddProduct() {
   const [formData, setFormData] = useState({
     name: "",
     description: "",
+    categoryId: "",
     quantity: "",
     priceBeforeDiscount: "",
     priceAfterDiscount: "",
@@ -23,11 +26,17 @@ export default function AddProduct() {
   const { toast } = useToast();
   const queryClient = useQueryClient();
 
+  // Fetch categories for selection
+  const { data: categories = [], isLoading: categoriesLoading } = useQuery<Category[]>({
+    queryKey: ["/api/categories"],
+  });
+
   const createProductMutation = useMutation({
     mutationFn: async (data: typeof formData) => {
       const formDataToSend = new FormData();
       formDataToSend.append("name", data.name);
       formDataToSend.append("description", data.description);
+      if (data.categoryId) formDataToSend.append("categoryId", data.categoryId);
       formDataToSend.append("quantity", data.quantity);
       formDataToSend.append("priceBeforeDiscount", data.priceBeforeDiscount);
       formDataToSend.append("priceAfterDiscount", data.priceAfterDiscount);
@@ -118,6 +127,7 @@ export default function AddProduct() {
     setFormData({
       name: "",
       description: "",
+      categoryId: "",
       quantity: "",
       priceBeforeDiscount: "",
       priceAfterDiscount: "",
@@ -241,6 +251,34 @@ export default function AddProduct() {
                       required
                       data-testid="input-product-name"
                     />
+                  </div>
+
+                  <div>
+                    <Label htmlFor="categorySelect" className="text-xs flex items-center gap-1">
+                      <FolderTree className="h-3 w-3" />
+                      دسته‌بندی
+                    </Label>
+                    <Select
+                      value={formData.categoryId || "none"}
+                      onValueChange={(value) => setFormData({ ...formData, categoryId: value === "none" ? "" : value })}
+                      disabled={categoriesLoading}
+                    >
+                      <SelectTrigger className="h-8 text-sm" data-testid="select-category">
+                        <SelectValue placeholder={categoriesLoading ? "در حال بارگیری..." : "انتخاب دسته‌بندی"} />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="none" data-testid="select-category-none">بدون دسته‌بندی</SelectItem>
+                        {categories.map((category) => (
+                          <SelectItem 
+                            key={category.id} 
+                            value={category.id}
+                            data-testid={`select-category-${category.id}`}
+                          >
+                            {category.name}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
                   </div>
 
                   <div className="grid grid-cols-2 gap-3">

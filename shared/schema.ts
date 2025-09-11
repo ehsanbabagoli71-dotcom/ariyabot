@@ -52,6 +52,7 @@ export const products = pgTable("products", {
   userId: varchar("user_id").notNull().references(() => users.id),
   name: text("name").notNull(),
   description: text("description"),
+  categoryId: varchar("category_id").references(() => categories.id),
   image: text("image"),
   quantity: integer("quantity").notNull().default(0),
   priceBeforeDiscount: decimal("price_before_discount", { precision: 10, scale: 2 }).notNull(),

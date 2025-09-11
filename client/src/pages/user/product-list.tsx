@@ -7,14 +7,15 @@ import { Input } from "@/components/ui/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Switch } from "@/components/ui/switch";
-import { Plus, Search, Edit, Trash2 } from "lucide-react";
+import { Plus, Search, Edit, Trash2, ChevronUp, ChevronDown, ChevronsUpDown } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { createAuthenticatedRequest } from "@/lib/auth";
-import type { Product } from "@shared/schema";
+import type { Product, Category } from "@shared/schema";
 
 export default function ProductList() {
   const [search, setSearch] = useState("");
   const [statusFilter, setStatusFilter] = useState("all");
+  const [categorySortOrder, setCategorySortOrder] = useState<'none' | 'asc' | 'desc'>('none');
   const { toast } = useToast();
   const queryClient = useQueryClient();
 
@@ -25,6 +26,11 @@ export default function ProductList() {
       if (!response.ok) throw new Error("خطا در دریافت محصولات");
       return response.json();
     },
+  });
+
+  // Fetch categories to display category names
+  const { data: categories = [] } = useQuery<Category[]>({
+    queryKey: ["/api/categories"],
   });
 
   const updateProductMutation = useMutation({
@@ -76,6 +82,13 @@ export default function ProductList() {
     },
   });
 
+  // Get category name by categoryId
+  const getCategoryName = (categoryId: string | null) => {
+    if (!categoryId) return "بدون دسته‌بندی";
+    const category = categories.find(cat => cat.id === categoryId);
+    return category ? category.name : "نامشخص";
+  };
+
   const filteredProducts = products.filter(product => {
     const matchesSearch = product.name.toLowerCase().includes(search.toLowerCase()) ||
                          (product.description && product.description.toLowerCase().includes(search.toLowerCase()));
@@ -83,6 +96,16 @@ export default function ProductList() {
                          (statusFilter === "active" && product.isActive) ||
                          (statusFilter === "inactive" && !product.isActive);
     return matchesSearch && matchesStatus;
+  }).sort((a, b) => {
+    // Apply category sorting if enabled
+    if (categorySortOrder !== 'none') {
+      const categoryNameA = getCategoryName(a.categoryId);
+      const categoryNameB = getCategoryName(b.categoryId);
+      
+      const comparison = categoryNameA.localeCompare(categoryNameB, 'fa');
+      return categorySortOrder === 'asc' ? comparison : -comparison;
+    }
+    return 0; // No sorting
   });
 
   const handleToggleActive = (product: Product) => {
@@ -101,6 +124,24 @@ export default function ProductList() {
   const formatPrice = (price: string | null) => {
     if (!price) return "-";
     return parseFloat(price).toLocaleString("fa-IR") + " تومان";
+  };
+
+  // Handle category sort
+  const handleCategorySortToggle = () => {
+    if (categorySortOrder === 'none') {
+      setCategorySortOrder('asc');
+    } else if (categorySortOrder === 'asc') {
+      setCategorySortOrder('desc');
+    } else {
+      setCategorySortOrder('none');
+    }
+  };
+
+  // Get sort icon for category column
+  const getCategorySortIcon = () => {
+    if (categorySortOrder === 'asc') return <ChevronUp className="h-4 w-4" />;
+    if (categorySortOrder === 'desc') return <ChevronDown className="h-4 w-4" />;
+    return <ChevronsUpDown className="h-4 w-4" />;
   };
 
   return (
@@ -158,6 +199,16 @@ export default function ProductList() {
                   <TableRow className="bg-muted">
                     <TableHead className="text-right">تصویر</TableHead>
                     <TableHead className="text-right">نام محصول</TableHead>
+                    <TableHead className="text-right">
+                      <button 
+                        onClick={handleCategorySortToggle}
+                        className="flex items-center gap-2 hover:text-primary transition-colors cursor-pointer"
+                        data-testid="button-sort-category"
+                      >
+                        دسته‌بندی
+                        {getCategorySortIcon()}
+                      </button>
+                    </TableHead>
                     <TableHead className="text-right">تعداد</TableHead>
                     <TableHead className="text-right">قیمت اصلی</TableHead>
                     <TableHead className="text-right">قیمت تخفیف‌دار</TableHead>
@@ -168,7 +219,7 @@ export default function ProductList() {
                 <TableBody>
                   {filteredProducts.length === 0 ? (
                     <TableRow>
-                      <TableCell colSpan={7} className="text-center py-8 text-muted-foreground">
+                      <TableCell colSpan={8} className="text-center py-8 text-muted-foreground">
                         {search || statusFilter !== "all" ? "محصولی یافت نشد" : "هیچ محصولی اضافه نکرده‌اید"}
                       </TableCell>
                     </TableRow>
@@ -193,6 +244,9 @@ export default function ProductList() {
                           <p className="font-medium text-foreground" data-testid={`text-product-name-${product.id}`}>
                             {product.name}
                           </p>
+                        </TableCell>
+                        <TableCell className="text-muted-foreground" data-testid={`text-product-category-${product.id}`}>
+                          {getCategoryName(product.categoryId)}
                         </TableCell>
                         <TableCell className="text-muted-foreground" data-testid={`text-product-quantity-${product.id}`}>
                           {product.quantity}
