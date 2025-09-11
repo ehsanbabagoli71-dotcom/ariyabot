@@ -8,10 +8,20 @@ Preferred communication style: Simple, everyday language.
 
 # Recent Changes
 
-- **مشکل login با کیبورد فارسی حل شد و برنامه کاملاً عملیاتی است (2025-09-11)**
-  - مشکل تبدیل ارقام فارسی به انگلیسی در password verification شناسایی و حل شد  
-  - تابع normalizeDigits اضافه شد که ارقام فارسی/عربی را به انگلیسی تبدیل می‌کند
-  - Admin user با username: ehsan و password: admin123 کاملاً کارکرد است
+- **مشکل drag & drop دسته‌بندی‌ها کاملاً حل شد (2025-09-11)**
+  - Route conflicts بین dynamic routes و literal endpoints حل شد
+  - UUID regex constraints اضافه شد: `:id([0-9a-fA-F-]{36})` 
+  - منطق frontend reordering کاملاً بازنویسی شد
+  - همه categories متأثر هنگام drag & drop بروزرسانی می‌شوند
+  - Order conflicts و duplicate order values حل شدند
+  - UI و database حالا کاملاً sync هستند
+- **مشکل login ادمین کاملاً حل شد و برنامه عملیاتی است (2025-09-11)**
+  - مشکل رمز عبور تصادفی ادمین حل شد و رمز عبور ثابت "admin123" تعریف شد
+  - کاربر ادمین با اطلاعات زیر قابل دسترسی است:
+    - نام کاربری: ehsan
+    - رمز عبور: admin123  
+    - ایمیل: ehsan@admin.com
+  - تست ورود موفقیت‌آمیز بوده و JWT token صادر می‌شود
   - server بر روی port 5000 با موفقیت در حال اجرا است
 - **پروژه GitHub به محیط Replit منتقل شد و تنظیمات کامل انجام شد (2025-09-10)**
   - کلیه dependencies نصب شدند (tsx اضافه شد)
