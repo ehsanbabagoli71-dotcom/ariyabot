@@ -1,6 +1,6 @@
 import { Pool } from "pg";
 import { drizzle } from "drizzle-orm/node-postgres";
-import { eq, sql, desc, and, gte } from "drizzle-orm";
+import { eq, sql, desc, and, gte, or } from "drizzle-orm";
 import { users, tickets, subscriptions, products, whatsappSettings, sentMessages, receivedMessages, aiTokenSettings, userSubscriptions, categories } from "@shared/schema";
 import { type User, type InsertUser, type Ticket, type InsertTicket, type Subscription, type InsertSubscription, type Product, type InsertProduct, type WhatsappSettings, type InsertWhatsappSettings, type SentMessage, type InsertSentMessage, type ReceivedMessage, type InsertReceivedMessage, type AiTokenSettings, type InsertAiTokenSettings, type UserSubscription, type InsertUserSubscription, type Category, type InsertCategory } from "@shared/schema";
 import { type IStorage } from "./storage";
@@ -203,17 +203,63 @@ export class DbStorage implements IStorage {
   }
 
   // Products
-  async getProduct(id: string): Promise<Product | undefined> {
+  async getProduct(id: string, currentUserId: string, userRole: string): Promise<Product | undefined> {
     const result = await db.select().from(products).where(eq(products.id, id)).limit(1);
-    return result[0];
+    const product = result[0];
+    
+    if (!product) return undefined;
+    
+    // Apply role-based access control
+    if (userRole === 'admin' || userRole === 'user_level_1') {
+      // Admin and level 1 can only access their own products
+      return product.userId === currentUserId ? product : undefined;
+    } else if (userRole === 'user_level_2') {
+      // Level 2 can only access products from level 1 users
+      const productOwner = await db.select().from(users)
+        .where(and(eq(users.id, product.userId), eq(users.role, 'user_level_1')))
+        .limit(1);
+      return productOwner.length > 0 ? product : undefined;
+    }
+    
+    return undefined;
   }
 
   async getProductsByUser(userId: string): Promise<Product[]> {
     return await db.select().from(products).where(eq(products.userId, userId));
   }
 
-  async getAllProducts(): Promise<Product[]> {
-    return await db.select().from(products);
+  async getAllProducts(currentUserId: string, userRole: string): Promise<Product[]> {
+    if (!currentUserId || !userRole) {
+      throw new Error('User context required for getAllProducts');
+    }
+
+    // Filter based on user role
+    if (userRole === 'admin') {
+      // Admin sees only their own products
+      return await db.select().from(products).where(eq(products.userId, currentUserId));
+    } else if (userRole === 'user_level_1') {
+      // Level 1 sees only their own products  
+      return await db.select().from(products).where(eq(products.userId, currentUserId));
+    } else if (userRole === 'user_level_2') {
+      // Level 2 sees products from level 1 users AND their own products
+      const level1Users = await db.select({ id: users.id }).from(users).where(eq(users.role, 'user_level_1'));
+      const level1UserIds = level1Users.map(user => user.id);
+      
+      if (level1UserIds.length === 0) {
+        // If no level 1 users exist, only show own products
+        return await db.select().from(products).where(eq(products.userId, currentUserId));
+      }
+      
+      // Show own products OR products from level 1 users
+      return await db.select().from(products).where(
+        or(
+          eq(products.userId, currentUserId),
+          sql`${products.userId} = ANY(${level1UserIds})`
+        )
+      );
+    }
+    
+    return [];
   }
 
   async createProduct(insertProduct: InsertProduct): Promise<Product> {
@@ -221,12 +267,28 @@ export class DbStorage implements IStorage {
     return result[0];
   }
 
-  async updateProduct(id: string, updates: Partial<Product>): Promise<Product | undefined> {
+  async updateProduct(id: string, updates: Partial<Product>, currentUserId: string, userRole: string): Promise<Product | undefined> {
+    // user_level_2 cannot modify products, only view them
+    if (userRole === 'user_level_2') {
+      return undefined;
+    }
+    
+    const product = await this.getProduct(id, currentUserId, userRole);
+    if (!product) return undefined;
+    
     const result = await db.update(products).set(updates).where(eq(products.id, id)).returning();
     return result[0];
   }
 
-  async deleteProduct(id: string): Promise<boolean> {
+  async deleteProduct(id: string, currentUserId: string, userRole: string): Promise<boolean> {
+    // user_level_2 cannot modify products, only view them
+    if (userRole === 'user_level_2') {
+      return false;
+    }
+    
+    const product = await this.getProduct(id, currentUserId, userRole);
+    if (!product) return false;
+    
     const result = await db.delete(products).where(eq(products.id, id));
     return result.rowCount! > 0;
   }
@@ -410,27 +472,66 @@ export class DbStorage implements IStorage {
   }
 
   // Categories
-  async getCategory(id: string): Promise<Category | undefined> {
-    const result = await db.select().from(categories).where(eq(categories.id, id)).limit(1);
-    return result[0];
+  async getCategory(id: string, currentUserId: string, userRole: string): Promise<Category | undefined> {
+    if (userRole === 'admin' || userRole === 'user_level_1') {
+      // Admin and level 1 can only access their own categories
+      const result = await db.select().from(categories)
+        .where(and(eq(categories.id, id), eq(categories.createdBy, currentUserId)))
+        .limit(1);
+      return result[0];
+    } else if (userRole === 'user_level_2') {
+      // Level 2 can only access categories from level 1 users
+      const result = await db.select().from(categories)
+        .innerJoin(users, eq(categories.createdBy, users.id))
+        .where(and(eq(categories.id, id), eq(users.role, 'user_level_1')))
+        .limit(1);
+      return result[0]?.categories;
+    }
+    return undefined;
   }
 
-  async getAllCategories(): Promise<Category[]> {
-    return await db.select().from(categories)
-      .orderBy(categories.order);
+  async getAllCategories(currentUserId: string, userRole: string): Promise<Category[]> {
+    if (!currentUserId || !userRole) {
+      throw new Error('User context required for getAllCategories');
+    }
+
+    // Filter based on user role
+    if (userRole === 'admin') {
+      // Admin sees only their own categories
+      return await db.select().from(categories)
+        .where(eq(categories.createdBy, currentUserId))
+        .orderBy(categories.order);
+    } else if (userRole === 'user_level_1') {
+      // Level 1 sees only their own categories
+      return await db.select().from(categories)
+        .where(eq(categories.createdBy, currentUserId))
+        .orderBy(categories.order);
+    } else if (userRole === 'user_level_2') {
+      // Level 2 sees only categories from level 1 users
+      const level1Users = await db.select({ id: users.id }).from(users).where(eq(users.role, 'user_level_1'));
+      const level1UserIds = level1Users.map(user => user.id);
+      
+      if (level1UserIds.length === 0) {
+        return [];
+      }
+      
+      return await db.select().from(categories)
+        .where(sql`${categories.createdBy} = ANY(${level1UserIds})`)
+        .orderBy(categories.order);
+    }
+    
+    return [];
   }
 
-  async getCategoriesByParent(parentId: string | null): Promise<Category[]> {
-    return await db.select().from(categories)
-      .where(parentId === null ? sql`${categories.parentId} IS NULL` : eq(categories.parentId, parentId))
-      .orderBy(categories.order);
+  async getCategoriesByParent(parentId: string | null, currentUserId: string, userRole: string): Promise<Category[]> {
+    const allCategories = await this.getAllCategories(currentUserId, userRole);
+    return allCategories.filter(category => category.parentId === parentId);
   }
 
-  async getCategoryTree(): Promise<Category[]> {
+  async getCategoryTree(currentUserId: string, userRole: string): Promise<Category[]> {
+    const allCategories = await this.getAllCategories(currentUserId, userRole);
     // Get root categories (those with null parentId)
-    return await db.select().from(categories)
-      .where(sql`${categories.parentId} IS NULL`)
-      .orderBy(categories.order);
+    return allCategories.filter(cat => cat.parentId === null);
   }
 
   async createCategory(insertCategory: InsertCategory): Promise<Category> {
@@ -438,7 +539,10 @@ export class DbStorage implements IStorage {
     return result[0];
   }
 
-  async updateCategory(id: string, updates: Partial<Category>): Promise<Category | undefined> {
+  async updateCategory(id: string, updates: Partial<Category>, currentUserId: string, userRole: string): Promise<Category | undefined> {
+    const category = await this.getCategory(id, currentUserId, userRole);
+    if (!category) return undefined;
+    
     const result = await db.update(categories)
       .set({ ...updates, updatedAt: new Date() })
       .where(eq(categories.id, id))
@@ -446,7 +550,10 @@ export class DbStorage implements IStorage {
     return result[0];
   }
 
-  async deleteCategory(id: string): Promise<boolean> {
+  async deleteCategory(id: string, currentUserId: string, userRole: string): Promise<boolean> {
+    const category = await this.getCategory(id, currentUserId, userRole);
+    if (!category) return false;
+    
     const result = await db.delete(categories).where(eq(categories.id, id));
     return result.rowCount! > 0;
   }

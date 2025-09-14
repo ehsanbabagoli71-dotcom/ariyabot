@@ -749,7 +749,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   // Product routes
   app.get("/api/products", authenticateToken, async (req: AuthRequest, res) => {
     try {
-      const products = await storage.getProductsByUser(req.user!.id);
+      const products = await storage.getAllProducts(req.user!.id, req.user!.role);
       res.json(products);
     } catch (error) {
       res.status(500).json({ message: "خطا در دریافت محصولات" });
@@ -803,6 +803,11 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
   app.put("/api/products/:id", authenticateToken, upload.single("productImage"), async (req: AuthRequest, res) => {
     try {
+      // user_level_2 cannot modify products, only view them
+      if (req.user!.role === 'user_level_2') {
+        return res.status(403).json({ message: "شما اجازه تغییر محصولات را ندارید" });
+      }
+      
       const { id } = req.params;
       let updates = { ...req.body };
       
@@ -818,13 +823,10 @@ export async function registerRoutes(app: Express): Promise<Server> {
         fs.unlinkSync((req as any).file.path);
       }
       
-      // Ensure user can only update their own products
-      const product = await storage.getProduct(id);
-      if (!product || (product.userId !== req.user!.id && req.user!.role !== "admin")) {
+      const updatedProduct = await storage.updateProduct(id, updates, req.user!.id, req.user!.role);
+      if (!updatedProduct) {
         return res.status(404).json({ message: "محصول یافت نشد" });
       }
-
-      const updatedProduct = await storage.updateProduct(id, updates);
       res.json(updatedProduct);
     } catch (error) {
       console.error("خطا در بروزرسانی محصول:", error);
@@ -834,15 +836,17 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
   app.delete("/api/products/:id", authenticateToken, async (req: AuthRequest, res) => {
     try {
+      // user_level_2 cannot modify products, only view them
+      if (req.user!.role === 'user_level_2') {
+        return res.status(403).json({ message: "شما اجازه حذف محصولات را ندارید" });
+      }
+      
       const { id } = req.params;
       
-      // Ensure user can only delete their own products
-      const product = await storage.getProduct(id);
-      if (!product || (product.userId !== req.user!.id && req.user!.role !== "admin")) {
+      const success = await storage.deleteProduct(id, req.user!.id, req.user!.role);
+      if (!success) {
         return res.status(404).json({ message: "محصول یافت نشد" });
       }
-
-      const success = await storage.deleteProduct(id);
       res.json({ message: "محصول با موفقیت حذف شد" });
     } catch (error) {
       res.status(500).json({ message: "خطا در حذف محصول" });
@@ -1109,9 +1113,9 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
   // Categories API
   // Get all categories
-  app.get("/api/categories", authenticateToken, async (req, res) => {
+  app.get("/api/categories", authenticateToken, async (req: AuthRequest, res) => {
     try {
-      const categories = await storage.getAllCategories();
+      const categories = await storage.getAllCategories(req.user!.id, req.user!.role);
       res.json(categories);
     } catch (error) {
       res.status(500).json({ message: "خطا در دریافت دسته‌بندی‌ها" });
@@ -1119,9 +1123,9 @@ export async function registerRoutes(app: Express): Promise<Server> {
   });
 
   // Get category tree
-  app.get("/api/categories/tree", authenticateToken, requireAdmin, async (req, res) => {
+  app.get("/api/categories/tree", authenticateToken, requireAdmin, async (req: AuthRequest, res) => {
     try {
-      const tree = await storage.getCategoryTree();
+      const tree = await storage.getCategoryTree(req.user!.id, req.user!.role);
       res.json(tree);
     } catch (error) {
       res.status(500).json({ message: "خطا در دریافت ساختار درختی دسته‌بندی‌ها" });
@@ -1129,10 +1133,10 @@ export async function registerRoutes(app: Express): Promise<Server> {
   });
 
   // Get categories by parent
-  app.get("/api/categories/by-parent/:parentId?", authenticateToken, requireAdmin, async (req, res) => {
+  app.get("/api/categories/by-parent/:parentId?", authenticateToken, requireAdmin, async (req: AuthRequest, res) => {
     try {
       const parentId = req.params.parentId === 'null' ? null : req.params.parentId;
-      const categories = await storage.getCategoriesByParent(parentId);
+      const categories = await storage.getCategoriesByParent(parentId, req.user!.id, req.user!.role);
       res.json(categories);
     } catch (error) {
       res.status(500).json({ message: "خطا در دریافت زیر دسته‌بندی‌ها" });
@@ -1140,10 +1144,15 @@ export async function registerRoutes(app: Express): Promise<Server> {
   });
 
   // Create category
-  app.post("/api/categories", authenticateToken, requireAdmin, async (req, res) => {
+  app.post("/api/categories", authenticateToken, requireAdmin, async (req: AuthRequest, res) => {
     try {
       const categoryData = insertCategorySchema.parse(req.body);
-      const category = await storage.createCategory(categoryData);
+      // Server-side control: override createdBy with current user ID
+      const categoryWithCreator = {
+        ...categoryData,
+        createdBy: req.user!.id
+      };
+      const category = await storage.createCategory(categoryWithCreator);
       res.json(category);
     } catch (error) {
       if (error instanceof z.ZodError) {
@@ -1156,7 +1165,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   // Get single category (UUID constrained)
   app.get("/api/categories/:id([0-9a-fA-F-]{36})", authenticateToken, requireAdmin, async (req, res) => {
     try {
-      const category = await storage.getCategory(req.params.id);
+      const category = await storage.getCategory(req.params.id, req.user!.id, req.user!.role);
       if (!category) {
         return res.status(404).json({ message: "دسته‌بندی یافت نشد" });
       }
@@ -1167,10 +1176,12 @@ export async function registerRoutes(app: Express): Promise<Server> {
   });
 
   // Update category (UUID constrained)
-  app.put("/api/categories/:id([0-9a-fA-F-]{36})", authenticateToken, requireAdmin, async (req, res) => {
+  app.put("/api/categories/:id([0-9a-fA-F-]{36})", authenticateToken, requireAdmin, async (req: AuthRequest, res) => {
     try {
       const updates = req.body;
-      const category = await storage.updateCategory(req.params.id, updates);
+      // Server-side control: prevent modification of createdBy
+      delete updates.createdBy;
+      const category = await storage.updateCategory(req.params.id, updates, req.user!.id, req.user!.role);
       if (!category) {
         return res.status(404).json({ message: "دسته‌بندی یافت نشد" });
       }
@@ -1209,7 +1220,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   // Delete category (UUID constrained)
   app.delete("/api/categories/:id([0-9a-fA-F-]{36})", authenticateToken, requireAdmin, async (req, res) => {
     try {
-      const success = await storage.deleteCategory(req.params.id);
+      const success = await storage.deleteCategory(req.params.id, req.user!.id, req.user!.role);
       if (!success) {
         return res.status(404).json({ message: "دسته‌بندی یافت نشد" });
       }

@@ -98,7 +98,7 @@ function Router() {
       <Route path="/users" component={() => <AdminRoute component={UserManagement} />} />
       <Route path="/tickets" component={() => <AdminRoute component={TicketManagement} />} />
       <Route path="/subscriptions" component={() => <AdminRoute component={Subscriptions} />} />
-      <Route path="/categories" component={() => <AdminRoute component={Categories} />} />
+      <Route path="/categories" component={() => <AdminOrLevel1Route component={Categories} />} />
       <Route path="/ai-token" component={() => <AdminRoute component={AITokenSettings} />} />
       <Route path="/whatsapp-settings" component={() => <AdminOrLevel1Route component={WhatsappSettings} />} />
       <Route path="/send-message" component={() => <AdminOrLevel1Route component={SendMessage} />} />

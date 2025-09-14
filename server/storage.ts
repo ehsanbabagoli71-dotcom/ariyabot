@@ -30,12 +30,12 @@ export interface IStorage {
   deleteSubscription(id: string): Promise<boolean>;
   
   // Products
-  getProduct(id: string): Promise<Product | undefined>;
+  getProduct(id: string, currentUserId: string, userRole: string): Promise<Product | undefined>;
   getProductsByUser(userId: string): Promise<Product[]>;
-  getAllProducts(): Promise<Product[]>;
+  getAllProducts(currentUserId?: string, userRole?: string): Promise<Product[]>;
   createProduct(product: InsertProduct): Promise<Product>;
-  updateProduct(id: string, product: Partial<Product>): Promise<Product | undefined>;
-  deleteProduct(id: string): Promise<boolean>;
+  updateProduct(id: string, product: Partial<Product>, currentUserId: string, userRole: string): Promise<Product | undefined>;
+  deleteProduct(id: string, currentUserId: string, userRole: string): Promise<boolean>;
   
   // WhatsApp Settings
   getWhatsappSettings(): Promise<WhatsappSettings | undefined>;
@@ -67,13 +67,13 @@ export interface IStorage {
   getExpiredUserSubscriptions(): Promise<UserSubscription[]>;
   
   // Categories  
-  getCategory(id: string): Promise<Category | undefined>;
-  getAllCategories(): Promise<Category[]>;
-  getCategoriesByParent(parentId: string | null): Promise<Category[]>;
-  getCategoryTree(): Promise<Category[]>;
+  getCategory(id: string, currentUserId: string, userRole: string): Promise<Category | undefined>;
+  getAllCategories(currentUserId: string, userRole: string): Promise<Category[]>;
+  getCategoriesByParent(parentId: string | null, currentUserId: string, userRole: string): Promise<Category[]>;
+  getCategoryTree(currentUserId: string, userRole: string): Promise<Category[]>;
   createCategory(category: InsertCategory): Promise<Category>;
-  updateCategory(id: string, category: Partial<Category>): Promise<Category | undefined>;
-  deleteCategory(id: string): Promise<boolean>;
+  updateCategory(id: string, category: Partial<Category>, currentUserId: string, userRole: string): Promise<Category | undefined>;
+  deleteCategory(id: string, currentUserId: string, userRole: string): Promise<boolean>;
   reorderCategories(updates: { id: string; order: number; parentId?: string | null }[]): Promise<boolean>;
 }
 
@@ -309,16 +309,50 @@ export class MemStorage implements IStorage {
   }
 
   // Products
-  async getProduct(id: string): Promise<Product | undefined> {
-    return this.products.get(id);
+  async getProduct(id: string, currentUserId: string, userRole: string): Promise<Product | undefined> {
+    const product = this.products.get(id);
+    if (!product) return undefined;
+    
+    // Apply role-based access control
+    if (userRole === 'admin' || userRole === 'user_level_1') {
+      // Admin and level 1 can only access their own products
+      return product.userId === currentUserId ? product : undefined;
+    } else if (userRole === 'user_level_2') {
+      // Level 2 can only access products from level 1 users
+      const productOwner = this.users.get(product.userId);
+      return (productOwner && productOwner.role === 'user_level_1') ? product : undefined;
+    }
+    return undefined;
   }
 
   async getProductsByUser(userId: string): Promise<Product[]> {
     return Array.from(this.products.values()).filter(product => product.userId === userId);
   }
 
-  async getAllProducts(): Promise<Product[]> {
-    return Array.from(this.products.values());
+  async getAllProducts(currentUserId: string, userRole: string): Promise<Product[]> {
+    if (!currentUserId || !userRole) {
+      throw new Error('User context required for getAllProducts');
+    }
+
+    const allProducts = Array.from(this.products.values());
+    
+    // Filter based on user role
+    if (userRole === 'admin') {
+      // Admin sees only their own products
+      return allProducts.filter(product => product.userId === currentUserId);
+    } else if (userRole === 'user_level_1') {
+      // Level 1 sees only their own products  
+      return allProducts.filter(product => product.userId === currentUserId);
+    } else if (userRole === 'user_level_2') {
+      // Level 2 sees products from level 1 users AND their own products
+      const level1Users = Array.from(this.users.values()).filter(user => user.role === 'user_level_1');
+      const level1UserIds = level1Users.map(user => user.id);
+      return allProducts.filter(product => 
+        product.userId === currentUserId || level1UserIds.includes(product.userId)
+      );
+    }
+    
+    return [];
   }
 
   async createProduct(insertProduct: InsertProduct): Promise<Product> {
@@ -328,6 +362,7 @@ export class MemStorage implements IStorage {
       id,
       description: insertProduct.description || null,
       image: insertProduct.image || null,
+      categoryId: insertProduct.categoryId || null,
       quantity: insertProduct.quantity || 0,
       priceAfterDiscount: insertProduct.priceAfterDiscount || null,
       isActive: insertProduct.isActive !== undefined ? insertProduct.isActive : true,
@@ -337,8 +372,13 @@ export class MemStorage implements IStorage {
     return product;
   }
 
-  async updateProduct(id: string, updates: Partial<Product>): Promise<Product | undefined> {
-    const product = this.products.get(id);
+  async updateProduct(id: string, updates: Partial<Product>, currentUserId: string, userRole: string): Promise<Product | undefined> {
+    // user_level_2 cannot modify products, only view them
+    if (userRole === 'user_level_2') {
+      return undefined;
+    }
+    
+    const product = await this.getProduct(id, currentUserId, userRole);
     if (!product) return undefined;
     
     const updatedProduct = { ...product, ...updates };
@@ -346,7 +386,15 @@ export class MemStorage implements IStorage {
     return updatedProduct;
   }
 
-  async deleteProduct(id: string): Promise<boolean> {
+  async deleteProduct(id: string, currentUserId: string, userRole: string): Promise<boolean> {
+    // user_level_2 cannot modify products, only view them
+    if (userRole === 'user_level_2') {
+      return false;
+    }
+    
+    const product = await this.getProduct(id, currentUserId, userRole);
+    if (!product) return false;
+    
     return this.products.delete(id);
   }
 
@@ -531,24 +579,63 @@ export class MemStorage implements IStorage {
   }
 
   // Categories
-  async getCategory(id: string): Promise<Category | undefined> {
-    return this.categories.get(id);
+  async getCategory(id: string, currentUserId: string, userRole: string): Promise<Category | undefined> {
+    const category = this.categories.get(id);
+    if (!category) return undefined;
+    
+    // Check ownership based on user role
+    if (userRole === 'admin' || userRole === 'user_level_1') {
+      // Admin and level 1 can only access their own categories
+      if (category.createdBy !== currentUserId) {
+        return undefined;
+      }
+    } else if (userRole === 'user_level_2') {
+      // Level 2 can only access categories from level 1 users
+      const level1Users = Array.from(this.users.values()).filter(user => user.role === 'user_level_1');
+      const level1UserIds = level1Users.map(user => user.id);
+      if (!level1UserIds.includes(category.createdBy)) {
+        return undefined;
+      }
+    } else {
+      return undefined;
+    }
+    
+    return category;
   }
 
-  async getAllCategories(): Promise<Category[]> {
-    return Array.from(this.categories.values())
+  async getAllCategories(currentUserId: string, userRole: string): Promise<Category[]> {
+    if (!currentUserId || !userRole) {
+      throw new Error('User context required for getAllCategories');
+    }
+
+    const allCategories = Array.from(this.categories.values());
+    let filteredCategories: Category[] = [];
+    
+    // Filter based on user role
+    if (userRole === 'admin') {
+      // Admin sees only their own categories
+      filteredCategories = allCategories.filter(category => category.createdBy === currentUserId);
+    } else if (userRole === 'user_level_1') {
+      // Level 1 sees only their own categories  
+      filteredCategories = allCategories.filter(category => category.createdBy === currentUserId);
+    } else if (userRole === 'user_level_2') {
+      // Level 2 sees only categories from level 1 users
+      const level1Users = Array.from(this.users.values()).filter(user => user.role === 'user_level_1');
+      const level1UserIds = level1Users.map(user => user.id);
+      filteredCategories = allCategories.filter(category => level1UserIds.includes(category.createdBy));
+    }
+    
+    return filteredCategories.sort((a, b) => a.order - b.order);
+  }
+
+  async getCategoriesByParent(parentId: string | null, currentUserId: string, userRole: string): Promise<Category[]> {
+    const allCategories = await this.getAllCategories(currentUserId, userRole);
+    return allCategories.filter(category => category.parentId === parentId)
       .sort((a, b) => a.order - b.order);
   }
 
-  async getCategoriesByParent(parentId: string | null): Promise<Category[]> {
-    return Array.from(this.categories.values())
-      .filter(category => category.parentId === parentId)
-      .sort((a, b) => a.order - b.order);
-  }
-
-  async getCategoryTree(): Promise<Category[]> {
-    const allCategories = Array.from(this.categories.values())
-      .sort((a, b) => a.order - b.order);
+  async getCategoryTree(currentUserId: string, userRole: string): Promise<Category[]> {
+    const allCategories = await this.getAllCategories(currentUserId, userRole);
     
     // Build tree structure (this is a simplified version, full tree building would be more complex)
     return allCategories.filter(cat => cat.parentId === null);
@@ -570,8 +657,8 @@ export class MemStorage implements IStorage {
     return category;
   }
 
-  async updateCategory(id: string, updates: Partial<Category>): Promise<Category | undefined> {
-    const category = this.categories.get(id);
+  async updateCategory(id: string, updates: Partial<Category>, currentUserId: string, userRole: string): Promise<Category | undefined> {
+    const category = await this.getCategory(id, currentUserId, userRole);
     if (!category) return undefined;
     
     const updatedCategory = { 
@@ -583,7 +670,10 @@ export class MemStorage implements IStorage {
     return updatedCategory;
   }
 
-  async deleteCategory(id: string): Promise<boolean> {
+  async deleteCategory(id: string, currentUserId: string, userRole: string): Promise<boolean> {
+    const category = await this.getCategory(id, currentUserId, userRole);
+    if (!category) return false;
+    
     return this.categories.delete(id);
   }
 

@@ -116,6 +116,7 @@ export const categories = pgTable("categories", {
   name: text("name").notNull(),
   description: text("description"),
   parentId: varchar("parent_id"),
+  createdBy: varchar("created_by").notNull().references(() => users.id),
   order: integer("order").notNull().default(0),
   isActive: boolean("is_active").notNull().default(true),
   createdAt: timestamp("created_at").defaultNow(),
@@ -179,6 +180,7 @@ export const insertUserSubscriptionSchema = createInsertSchema(userSubscriptions
 
 export const insertCategorySchema = createInsertSchema(categories).omit({
   id: true,
+  createdBy: true, // Server controls this field
   createdAt: true,
   updatedAt: true,
 });

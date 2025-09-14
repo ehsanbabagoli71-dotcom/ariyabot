@@ -180,7 +180,7 @@ export function Sidebar() {
               </CollapsibleTrigger>
               <CollapsibleContent className="mr-6 space-y-1">
                 {inventoryItems.map((item) => (
-                  (!item.adminOnly || user?.role === "admin") && (
+                  (!item.adminOnly || user?.role === "admin" || user?.role === "user_level_1") && (
                     <Link key={item.path} href={item.path}>
                       <Button
                         variant={isActive(item.path) ? "default" : "ghost"}
