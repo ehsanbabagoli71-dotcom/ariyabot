@@ -32,7 +32,13 @@ if (process.env.JWT_SECRET) {
 // Multer configuration for file uploads
 const storage_config = multer.diskStorage({
   destination: (req, file, cb) => {
-    cb(null, path.join(__dirname, "../uploads"));
+    const uploadPath = path.join(process.cwd(), "uploads");
+    // اطمینان از وجود فولدر uploads
+    const fs = require('fs');
+    if (!fs.existsSync(uploadPath)) {
+      fs.mkdirSync(uploadPath, { recursive: true });
+    }
+    cb(null, uploadPath);
   },
   filename: (req, file, cb) => {
     const uniqueSuffix = Date.now() + '-' + Math.round(Math.random() * 1E9);
@@ -83,6 +89,14 @@ const authenticateToken = async (req: AuthRequest, res: Response, next: NextFunc
 const requireAdmin = (req: AuthRequest, res: Response, next: NextFunction) => {
   if (req.user?.role !== "admin") {
     return res.status(403).json({ message: "دسترسی مدیر مورد نیاز است" });
+  }
+  next();
+};
+
+// Middleware for category operations - allows admin and user_level_1
+const requireAdminOrUserLevel1 = (req: AuthRequest, res: Response, next: NextFunction) => {
+  if (req.user?.role !== "admin" && req.user?.role !== "user_level_1") {
+    return res.status(403).json({ message: "دسترسی مدیر یا کاربر سطح ۱ مورد نیاز است" });
   }
   next();
 };
@@ -760,16 +774,10 @@ export async function registerRoutes(app: Express): Promise<Server> {
     try {
       let imageData = null;
       
-      // اگر فایل آپلود شده باشد، آن را به base64 تبدیل می‌کنیم
+      // اگر فایل آپلود شده باشد، مسیر آن را ذخیره می‌کنیم
       if ((req as any).file) {
-        const fs = await import('fs');
-        const fileBuffer = fs.readFileSync((req as any).file.path);
-        const base64 = fileBuffer.toString('base64');
-        const mimeType = (req as any).file.mimetype;
-        imageData = `data:${mimeType};base64,${base64}`;
-        
-        // حذف فایل موقت
-        fs.unlinkSync((req as any).file.path);
+        // مسیر فایل آپلود شده را ذخیره می‌کنیم
+        imageData = `/uploads/${(req as any).file.filename}`;
       }
       
       // Validate categoryId if provided
@@ -823,16 +831,10 @@ export async function registerRoutes(app: Express): Promise<Server> {
         }
       }
       
-      // اگر فایل جدید آپلود شده باشد، آن را به base64 تبدیل می‌کنیم
+      // اگر فایل جدید آپلود شده باشد، مسیر آن را ذخیره می‌کنیم
       if ((req as any).file) {
-        const fs = await import('fs');
-        const fileBuffer = fs.readFileSync((req as any).file.path);
-        const base64 = fileBuffer.toString('base64');
-        const mimeType = (req as any).file.mimetype;
-        updates.image = `data:${mimeType};base64,${base64}`;
-        
-        // حذف فایل موقت
-        fs.unlinkSync((req as any).file.path);
+        // مسیر فایل آپلود شده را ذخیره می‌کنیم
+        updates.image = `/uploads/${(req as any).file.filename}`;
       }
       
       const updatedProduct = await storage.updateProduct(id, updates, req.user!.id, req.user!.role);
@@ -1156,7 +1158,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   });
 
   // Create category
-  app.post("/api/categories", authenticateToken, requireAdmin, async (req: AuthRequest, res) => {
+  app.post("/api/categories", authenticateToken, requireAdminOrUserLevel1, async (req: AuthRequest, res) => {
     try {
       const categoryData = insertCategorySchema.parse(req.body);
       // Server-side control: override createdBy with current user ID
@@ -1175,7 +1177,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   });
 
   // Get single category (UUID constrained)
-  app.get("/api/categories/:id([0-9a-fA-F-]{36})", authenticateToken, requireAdmin, async (req, res) => {
+  app.get("/api/categories/:id([0-9a-fA-F-]{36})", authenticateToken, requireAdmin, async (req: AuthRequest, res) => {
     try {
       const category = await storage.getCategory(req.params.id, req.user!.id, req.user!.role);
       if (!category) {
@@ -1230,7 +1232,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   });
 
   // Delete category (UUID constrained)
-  app.delete("/api/categories/:id([0-9a-fA-F-]{36})", authenticateToken, requireAdmin, async (req, res) => {
+  app.delete("/api/categories/:id([0-9a-fA-F-]{36})", authenticateToken, requireAdmin, async (req: AuthRequest, res) => {
     try {
       const success = await storage.deleteCategory(req.params.id, req.user!.id, req.user!.role);
       if (!success) {
@@ -1243,7 +1245,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   });
 
   // Serve uploaded files
-  app.use("/uploads", express.static(path.join(__dirname, "../uploads")));
+  app.use("/uploads", express.static(path.join(process.cwd(), "uploads")));
 
   const httpServer = createServer(app);
   return httpServer;
