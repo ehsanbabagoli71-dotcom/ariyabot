@@ -1,5 +1,5 @@
 import { sql } from "drizzle-orm";
-import { pgTable, text, varchar, timestamp, integer, boolean, decimal } from "drizzle-orm/pg-core";
+import { pgTable, text, varchar, timestamp, integer, boolean, decimal, unique } from "drizzle-orm/pg-core";
 import { createInsertSchema } from "drizzle-zod";
 import { z } from "zod";
 
@@ -11,6 +11,7 @@ export const users = pgTable("users", {
   email: text("email").notNull().unique(),
   phone: text("phone").notNull(),
   whatsappNumber: text("whatsapp_number"), // WhatsApp number for automatic registration
+  whatsappToken: text("whatsapp_token"), // Individual WhatsApp token for level 1 users
   password: text("password"),
   googleId: text("google_id"),
   role: text("role").notNull().default("user_level_1"), // admin, user_level_1, user_level_2
@@ -84,13 +85,16 @@ export const sentMessages = pgTable("sent_messages", {
 export const receivedMessages = pgTable("received_messages", {
   id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
   userId: varchar("user_id").notNull().references(() => users.id),
-  whatsiPlusId: text("whatsiplus_id").unique(), // شناسه اصلی از WhatsiPlus
+  whatsiPlusId: text("whatsiplus_id").notNull(), // شناسه اصلی از WhatsiPlus
   sender: text("sender").notNull(),
   message: text("message").notNull(),
   status: text("status").notNull().default("خوانده نشده"), // خوانده نشده, خوانده شده
   originalDate: text("original_date"), // تاریخ اصلی از WhatsiPlus
   timestamp: timestamp("timestamp").defaultNow(),
-});
+}, (table) => ({
+  // Composite unique constraint on whatsiplus_id and user_id
+  whatsiUserUnique: unique("received_messages_whatsi_user_unique").on(table.whatsiPlusId, table.userId),
+}));
 
 export const aiTokenSettings = pgTable("ai_token_settings", {
   id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),

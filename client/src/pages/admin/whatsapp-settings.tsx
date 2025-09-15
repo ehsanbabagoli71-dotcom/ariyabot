@@ -7,6 +7,7 @@ import { Label } from "@/components/ui/label";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
+import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { 
   Save, 
   TestTube, 
@@ -18,7 +19,11 @@ import {
   XCircle,
   Eye,
   EyeOff,
-  Settings
+  Settings,
+  User,
+  Globe,
+  Crown,
+  Info
 } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { createAuthenticatedRequest } from "@/lib/auth";
@@ -31,10 +36,26 @@ export default function WhatsappSettings() {
     notifications: [] as string[],
   });
   const [showToken, setShowToken] = useState(false);
+  const [isPersonal, setIsPersonal] = useState(false);
   const { toast } = useToast();
   const queryClient = useQueryClient();
 
-  const { data: settings, isLoading } = useQuery<WhatsappSettings | null>({
+  // Get current user info
+  const { data: user } = useQuery<{role: string; id: string}>({
+    queryKey: ["/api/profile"],
+    queryFn: async () => {
+      const response = await createAuthenticatedRequest("/api/profile");
+      if (!response.ok) throw new Error("خطا در دریافت اطلاعات کاربر");
+      return response.json();
+    },
+  });
+
+  const { data: settings, isLoading } = useQuery<{
+    token: string;
+    isEnabled: boolean;
+    notifications: string[];
+    isPersonal: boolean;
+  }>({
     queryKey: ["/api/whatsapp-settings"],
     queryFn: async () => {
       const response = await createAuthenticatedRequest("/api/whatsapp-settings");
@@ -54,9 +75,10 @@ export default function WhatsappSettings() {
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["/api/whatsapp-settings"] });
+      queryClient.invalidateQueries({ queryKey: ["/api/profile"] });
       toast({
         title: "✅ موفقیت",
-        description: "تنظیمات ذخیره شد",
+        description: isPersonal ? "توکن شخصی ذخیره شد" : "تنظیمات ذخیره شد",
       });
     },
     onError: () => {
@@ -75,6 +97,7 @@ export default function WhatsappSettings() {
         isEnabled: settings.isEnabled,
         notifications: settings.notifications || [],
       });
+      setIsPersonal(!!settings.isPersonal);
     }
   }, [settings]);
 
@@ -117,6 +140,9 @@ export default function WhatsappSettings() {
     { id: "new_product", label: "محصول جدید", icon: Activity },
   ];
 
+  const isLevel1User = user?.role === 'user_level_1';
+  const isAdmin = user?.role === 'admin';
+
   if (isLoading) {
     return (
       <DashboardLayout title="تنظیمات واتس‌اپ">
@@ -131,14 +157,51 @@ export default function WhatsappSettings() {
     <DashboardLayout title="تنظیمات واتس‌اپ">
       <div className="space-y-4" data-testid="page-whatsapp-settings">
         
-
+        {/* Info Alert */}
+        <Alert>
+          <Info className="h-4 w-4" />
+          <AlertTitle>
+            {isPersonal ? (
+              <div className="flex items-center space-x-2 space-x-reverse">
+                <User className="w-4 h-4" />
+                <span>تنظیمات شخصی</span>
+              </div>
+            ) : (
+              <div className="flex items-center space-x-2 space-x-reverse">
+                <Globe className="w-4 h-4" />
+                <span>تنظیمات عمومی</span>
+              </div>
+            )}
+          </AlertTitle>
+          <AlertDescription>
+            {isPersonal 
+              ? "این توکن فقط برای حساب شخصی شما استفاده خواهد شد."
+              : "این تنظیمات برای کل سیستم اعمال می‌شود."
+            }
+          </AlertDescription>
+        </Alert>
 
         {/* Main Form */}
         <Card>
           <CardHeader className="pb-3">
             <CardTitle className="flex items-center space-x-2 space-x-reverse text-base">
-              <Settings className="w-4 h-4" />
-              <span>پیکربندی</span>
+              {isPersonal ? (
+                <>
+                  <User className="w-4 h-4" />
+                  <span>توکن واتس‌اپ شخصی</span>
+                </>
+              ) : (
+                <>
+                  <Settings className="w-4 h-4" />
+                  <span>پیکربندی عمومی</span>
+                  {isAdmin && (
+                    <Badge variant="secondary" className="mr-2">
+                      <Crown className="w-3 h-3 ml-1" />
+                      مدیر
+                    </Badge>
+                  )}
+                </>
+              )}
             </CardTitle>
           </CardHeader>
           <CardContent className="space-y-4">
@@ -173,47 +236,65 @@ export default function WhatsappSettings() {
                 </p>
               </div>
 
-              {/* Enable Toggle */}
-              <div className="flex items-center justify-between py-2">
-                <div className="flex items-center space-x-2 space-x-reverse">
-                  <Checkbox
-                    id="isEnabled"
-                    checked={formData.isEnabled}
-                    onCheckedChange={(checked) => setFormData({ ...formData, isEnabled: checked as boolean })}
-                    data-testid="checkbox-whatsapp-enabled"
-                  />
-                  <Label htmlFor="isEnabled" className="text-sm font-medium">
-                    فعال‌سازی سرویس واتس‌اپ
-                  </Label>
+              {/* Enable Toggle - Show for non-personal (admin) settings */}
+              {!isPersonal && (
+                <div className="flex items-center justify-between py-2">
+                  <div className="flex items-center space-x-2 space-x-reverse">
+                    <Checkbox
+                      id="isEnabled"
+                      checked={formData.isEnabled}
+                      onCheckedChange={(checked) => setFormData({ ...formData, isEnabled: checked as boolean })}
+                      data-testid="checkbox-whatsapp-enabled"
+                    />
+                    <Label htmlFor="isEnabled" className="text-sm font-medium">
+                      فعال‌سازی سرویس واتس‌اپ
+                    </Label>
+                  </div>
                 </div>
-              </div>
+              )}
 
-              {/* Notifications */}
-              <div className="space-y-2">
-                <Label className="text-sm font-medium flex items-center space-x-1 space-x-reverse">
-                  <Bell className="w-3 h-3" />
-                  <span>اعلان‌ها</span>
-                </Label>
-                <div className="grid grid-cols-1 md:grid-cols-3 gap-2">
-                  {notificationOptions.map((option) => {
-                    const IconComponent = option.icon;
-                    return (
-                      <div key={option.id} className="flex items-center space-x-2 space-x-reverse p-2 border rounded-lg hover:bg-gray-50">
-                        <Checkbox
-                          id={option.id}
-                          checked={formData.notifications.includes(option.id)}
-                          onCheckedChange={(checked) => handleNotificationChange(option.id, checked as boolean)}
-                          data-testid={`checkbox-notification-${option.id}`}
-                        />
-                        <IconComponent className="w-3 h-3 text-gray-500" />
-                        <Label htmlFor={option.id} className="text-xs cursor-pointer">
-                          {option.label}
-                        </Label>
-                      </div>
-                    );
-                  })}
+              {/* Notifications - Only for admin users */}
+              {!isPersonal && (
+                <div className="space-y-2">
+                  <Label className="text-sm font-medium flex items-center space-x-1 space-x-reverse">
+                    <Bell className="w-3 h-3" />
+                    <span>اعلان‌ها</span>
+                  </Label>
+                  <div className="grid grid-cols-1 md:grid-cols-3 gap-2">
+                    {notificationOptions.map((option) => {
+                      const IconComponent = option.icon;
+                      return (
+                        <div key={option.id} className="flex items-center space-x-2 space-x-reverse p-2 border rounded-lg hover:bg-gray-50">
+                          <Checkbox
+                            id={option.id}
+                            checked={formData.notifications.includes(option.id)}
+                            onCheckedChange={(checked) => handleNotificationChange(option.id, checked as boolean)}
+                            data-testid={`checkbox-notification-${option.id}`}
+                          />
+                          <IconComponent className="w-3 h-3 text-gray-500" />
+                          <Label htmlFor={option.id} className="text-xs cursor-pointer">
+                            {option.label}
+                          </Label>
+                        </div>
+                      );
+                    })}
+                  </div>
                 </div>
-              </div>
+              )}
+
+              {/* Personal Token Info for Level 1 users */}
+              {isPersonal && (
+                <div className="bg-blue-50 p-3 rounded-lg">
+                  <div className="flex items-center space-x-2 space-x-reverse mb-2">
+                    <User className="w-4 h-4 text-blue-600" />
+                    <span className="text-sm font-medium text-blue-800">اطلاعات توکن شخصی</span>
+                  </div>
+                  <p className="text-xs text-blue-700">
+                    با وارد کردن توکن شخصی، می‌توانید از طریق حساب واتس‌اپ خودتان پیام‌ها را مدیریت کنید.
+                    این توکن فقط برای شما قابل دسترسی است.
+                  </p>
+                </div>
+              )}
 
               {/* Buttons */}
               <div className="flex items-center space-x-3 space-x-reverse pt-2">

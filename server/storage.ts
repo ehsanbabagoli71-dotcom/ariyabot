@@ -50,6 +50,7 @@ export interface IStorage {
   getReceivedMessagesByUser(userId: string): Promise<ReceivedMessage[]>;
   getReceivedMessagesByUserPaginated(userId: string, page: number, limit: number): Promise<{ messages: ReceivedMessage[], total: number, totalPages: number }>;
   getReceivedMessageByWhatsiPlusId(whatsiPlusId: string): Promise<ReceivedMessage | undefined>;
+  getReceivedMessageByWhatsiPlusIdAndUser(whatsiPlusId: string, userId: string): Promise<ReceivedMessage | undefined>;
   createReceivedMessage(message: InsertReceivedMessage): Promise<ReceivedMessage>;
   updateReceivedMessageStatus(id: string, status: string): Promise<ReceivedMessage | undefined>;
 
@@ -129,6 +130,7 @@ export class MemStorage implements IStorage {
       email: "ehsan@admin.com",
       phone: "09123456789",
       whatsappNumber: null,
+      whatsappToken: null,
       password: hashedPassword,
       googleId: null,
       role: "admin",
@@ -208,6 +210,7 @@ export class MemStorage implements IStorage {
       googleId: insertUser.googleId || null,
       profilePicture: insertUser.profilePicture || null,
       whatsappNumber: insertUser.whatsappNumber || null,
+      whatsappToken: insertUser.whatsappToken || null,
       parentUserId: insertUser.parentUserId || null,
       isWhatsappRegistered: insertUser.isWhatsappRegistered || false,
       createdAt: new Date(),

@@ -52,22 +52,132 @@ class WhatsAppMessageService {
 
   async fetchMessages() {
     try {
-      // دریافت تنظیمات واتس‌اپ
+      console.log(`🔄 چک کردن پیام‌های جدید...`);
+
+      // دریافت همه کاربرانی که توکن واتس‌اپ شخصی دارند (کاربران سطح ۱ با توکن)
+      const allUsers = await storage.getAllUsers();
+      const usersWithTokens = allUsers.filter(user => 
+        user.role === 'user_level_1' && 
+        user.whatsappToken && 
+        user.whatsappToken.trim() !== ''
+      );
+
+      // اگر هیچ کاربری توکن ندارد، از تنظیمات عمومی (برای ادمین) استفاده کن
+      if (usersWithTokens.length === 0) {
+        await this.fetchMessagesForGlobalToken();
+        return;
+      }
+
+      // برای هر کاربر با توکن شخصی، پیام‌ها را جداگانه دریافت کن
+      for (const user of usersWithTokens) {
+        await this.fetchMessagesForUser(user);
+      }
+
+    } catch (error: any) {
+      console.error("❌ خطا در دریافت پیام‌های واتس‌اپ:", error.message || error);
+    }
+  }
+
+  /**
+   * دریافت پیام‌ها برای یک کاربر خاص با استفاده از توکن شخصی
+   */
+  async fetchMessagesForUser(user: any) {
+    try {
+      const controller = new AbortController();
+      const timeoutId = setTimeout(() => controller.abort(), 10000); // 10 second timeout
+      
+      const response = await fetch(`https://api.whatsiplus.com/receivedMessages/${user.whatsappToken}?page=1`, {
+        method: 'GET',
+        signal: controller.signal,
+        headers: {
+          'User-Agent': 'WhatsApp-Service/1.0',
+          'Accept': 'application/json',
+          'Cache-Control': 'no-cache'
+        }
+      });
+      
+      clearTimeout(timeoutId);
+      
+      if (!response.ok) {
+        console.error(`❌ خطا در دریافت پیام‌ها برای ${user.username}:`, response.status, response.statusText);
+        return;
+      }
+
+      const data: WhatsiPlusResponse = await response.json();
+      
+      if (!data.data || data.data.length === 0) {
+        return;
+      }
+
+      let newMessagesCount = 0;
+
+      // ذخیره پیام‌های جدید فقط برای این کاربر
+      for (const message of data.data) {
+        try {
+          // بررسی اینکه پیام خالی نباشد
+          if (!message.message || message.message.trim() === '') {
+            continue;
+          }
+          
+          // بررسی اینکه پیام قبلاً برای این کاربر ذخیره نشده باشد
+          const existingMessage = await storage.getReceivedMessageByWhatsiPlusIdAndUser(message.id, user.id);
+          
+          if (!existingMessage) {
+            // بررسی ثبت نام خودکار برای فرستندگان جدید
+            await this.handleAutoRegistration(message.from, message.message);
+
+            // ذخیره پیام فقط برای این کاربر
+            const savedMessage = await storage.createReceivedMessage({
+              userId: user.id,
+              whatsiPlusId: message.id,
+              sender: message.from,
+              message: message.message,
+              status: "خوانده نشده",
+              originalDate: message.date
+            });
+
+            // پاسخ خودکار با Gemini AI (اگر برای این کاربر فعال باشد)
+            if (geminiService.isActive()) {
+              await this.handleAutoResponse(message.from, message.message, message.id, user.id);
+            }
+            
+            newMessagesCount++;
+          }
+        } catch (error) {
+          console.error("❌ خطا در ذخیره پیام:", error);
+        }
+      }
+
+      if (newMessagesCount > 0) {
+        console.log(`📨 ${newMessagesCount} پیام جدید برای ${user.username} دریافت و ذخیره شد`);
+        this.lastFetchTime = new Date();
+      }
+
+    } catch (error: any) {
+      if (error.name === 'AbortError') {
+        console.error(`⏱️ Timeout: درخواست پیام‌ها برای ${user.username} بیش از حد انتظار طول کشید`);
+      } else {
+        console.error(`❌ خطا در دریافت پیام‌های واتس‌اپ برای ${user.username}:`, error.message || error);
+      }
+    }
+  }
+
+  /**
+   * دریافت پیام‌ها با استفاده از توکن عمومی (برای ادمین)
+   */
+  async fetchMessagesForGlobalToken() {
+    try {
+      // دریافت تنظیمات واتس‌اپ عمومی
       const settings = await storage.getWhatsappSettings();
       
       if (!settings || !settings.token || !settings.isEnabled) {
         console.log("⚠️ تنظیمات واتس‌اپ فعال نیست یا توکن موجود نیست");
-        if (!settings) console.log("   - تنظیمات موجود نیست");
-        if (settings && !settings.token) console.log("   - توکن موجود نیست");
-        if (settings && !settings.isEnabled) console.log("   - سرویس فعال نیست");
         return;
       }
 
-      console.log(`🔄 چک کردن پیام‌های جدید...`);
-
-      // دریافت پیام‌ها از WhatsiPlus API با timeout بهبود یافته
+      // دریافت پیام‌ها از WhatsiPlus API
       const controller = new AbortController();
-      const timeoutId = setTimeout(() => controller.abort(), 10000); // 10 second timeout
+      const timeoutId = setTimeout(() => controller.abort(), 10000);
       
       const response = await fetch(`https://api.whatsiplus.com/receivedMessages/${settings.token}?page=1`, {
         method: 'GET',
@@ -82,56 +192,50 @@ class WhatsAppMessageService {
       clearTimeout(timeoutId);
       
       if (!response.ok) {
-        console.error("❌ خطا در دریافت پیام‌ها از WhatsiPlus:", response.status, response.statusText);
+        console.error("❌ خطا در دریافت پیام‌ها از توکن عمومی:", response.status, response.statusText);
         return;
       }
 
       const data: WhatsiPlusResponse = await response.json();
       
       if (!data.data || data.data.length === 0) {
-        // console.log("📭 پیام جدیدی موجود نیست");
         return;
       }
 
       let newMessagesCount = 0;
+      
+      // پیدا کردن ادمین برای ذخیره پیام‌ها
+      const adminUsers = await storage.getAllUsers();
+      const admin = adminUsers.find(user => user.role === 'admin');
+      
+      if (!admin) {
+        console.error("❌ هیچ کاربر ادمین یافت نشد");
+        return;
+      }
 
-      // ذخیره پیام‌های جدید در دیتابیس
+      // ذخیره پیام‌های جدید برای ادمین
       for (const message of data.data) {
         try {
-          // بررسی اینکه پیام خالی نباشد
           if (!message.message || message.message.trim() === '') {
-            // Skip messages with empty content
             continue;
           }
           
-          // بررسی اینکه پیام قبلاً ذخیره نشده باشد
-          const existingMessage = await storage.getReceivedMessageByWhatsiPlusId(message.id);
+          const existingMessage = await storage.getReceivedMessageByWhatsiPlusIdAndUser(message.id, admin.id);
           
           if (!existingMessage) {
-            // بررسی ثبت نام خودکار برای فرستندگان جدید
             await this.handleAutoRegistration(message.from, message.message);
 
-            // پیدا کردن کاربرانی که مجاز به دریافت پیام‌ها هستند (ادمین یا سطح 1)
-            const users = await storage.getAllUsers();
-            const authorizedUsers = users.filter(user => user.role === 'admin' || user.role === 'user_level_1');
+            await storage.createReceivedMessage({
+              userId: admin.id,
+              whatsiPlusId: message.id,
+              sender: message.from,
+              message: message.message,
+              status: "خوانده نشده",
+              originalDate: message.date
+            });
 
-            // ذخیره پیام برای هر کاربر مجاز
-            let savedMessageId: string | null = null;
-            for (const user of authorizedUsers) {
-              const savedMessage = await storage.createReceivedMessage({
-                userId: user.id,
-                whatsiPlusId: message.id,
-                sender: message.from,
-                message: message.message,
-                status: "خوانده نشده",
-                originalDate: message.date
-              });
-              if (!savedMessageId) savedMessageId = savedMessage.id;
-            }
-
-            // پاسخ خودکار با Gemini AI
-            if (savedMessageId && geminiService.isActive()) {
-              await this.handleAutoResponse(message.from, message.message, message.id, authorizedUsers[0].id);
+            if (geminiService.isActive()) {
+              await this.handleAutoResponse(message.from, message.message, message.id, admin.id);
             }
             
             newMessagesCount++;
@@ -142,7 +246,7 @@ class WhatsAppMessageService {
       }
 
       if (newMessagesCount > 0) {
-        console.log(`📨 ${newMessagesCount} پیام جدید از واتس‌اپ دریافت و ذخیره شد`);
+        console.log(`📨 ${newMessagesCount} پیام جدید از توکن عمومی دریافت و ذخیره شد`);
         this.lastFetchTime = new Date();
       }
 

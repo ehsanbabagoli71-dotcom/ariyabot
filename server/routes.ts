@@ -1057,20 +1057,61 @@ export async function registerRoutes(app: Express): Promise<Server> {
   });
 
   // WhatsApp settings routes (Admin and Level 1 users)
-  app.get("/api/whatsapp-settings", authenticateToken, requireAdminOrLevel1, async (req, res) => {
+  app.get("/api/whatsapp-settings", authenticateToken, requireAdminOrLevel1, async (req: AuthRequest, res) => {
     try {
-      const settings = await storage.getWhatsappSettings();
-      res.json(settings || {});
+      const user = req.user!;
+      
+      // For level 1 users, return their individual token if they have one
+      if (user.role === 'user_level_1') {
+        res.json({
+          token: user.whatsappToken || '',
+          isEnabled: !!user.whatsappToken,
+          notifications: [],
+          isPersonal: true
+        });
+      } else {
+        // For admin, return global settings
+        const settings = await storage.getWhatsappSettings();
+        res.json({
+          ...settings,
+          isPersonal: false
+        } || {});
+      }
     } catch (error) {
       res.status(500).json({ message: "خطا در دریافت تنظیمات واتس اپ" });
     }
   });
 
-  app.put("/api/whatsapp-settings", authenticateToken, requireAdminOrLevel1, async (req, res) => {
+  app.put("/api/whatsapp-settings", authenticateToken, requireAdminOrLevel1, async (req: AuthRequest, res) => {
     try {
-      const validatedData = insertWhatsappSettingsSchema.parse(req.body);
-      const settings = await storage.updateWhatsappSettings(validatedData);
-      res.json(settings);
+      const user = req.user!;
+      
+      // For level 1 users, update their personal token
+      if (user.role === 'user_level_1') {
+        const { token } = req.body;
+        const updatedUser = await storage.updateUser(user.id, { 
+          whatsappToken: token || null 
+        });
+        
+        if (!updatedUser) {
+          return res.status(404).json({ message: "کاربر یافت نشد" });
+        }
+        
+        res.json({
+          token: updatedUser.whatsappToken || '',
+          isEnabled: !!updatedUser.whatsappToken,
+          notifications: [],
+          isPersonal: true
+        });
+      } else {
+        // For admin, update global settings
+        const validatedData = insertWhatsappSettingsSchema.parse(req.body);
+        const settings = await storage.updateWhatsappSettings(validatedData);
+        res.json({
+          ...settings,
+          isPersonal: false
+        });
+      }
     } catch (error) {
       if (error instanceof z.ZodError) {
         return res.status(400).json({ message: "داده های ورودی نامعتبر است", errors: error.errors });
@@ -1350,12 +1391,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   app.post("/api/categories", authenticateToken, requireAdminOrUserLevel1, async (req: AuthRequest, res) => {
     try {
       const categoryData = insertCategorySchema.parse(req.body);
-      // Server-side control: override createdBy with current user ID
-      const categoryWithCreator = {
-        ...categoryData,
-        createdBy: req.user!.id
-      };
-      const category = await storage.createCategory(categoryWithCreator);
+      const category = await storage.createCategory(categoryData, req.user!.id);
       res.json(category);
     } catch (error) {
       if (error instanceof z.ZodError) {

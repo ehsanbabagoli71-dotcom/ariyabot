@@ -356,6 +356,14 @@ export class DbStorage implements IStorage {
     return result[0];
   }
 
+  async getReceivedMessageByWhatsiPlusIdAndUser(whatsiPlusId: string, userId: string): Promise<ReceivedMessage | undefined> {
+    const result = await db.select()
+      .from(receivedMessages)
+      .where(and(eq(receivedMessages.whatsiPlusId, whatsiPlusId), eq(receivedMessages.userId, userId)))
+      .limit(1);
+    return result[0];
+  }
+
   async createReceivedMessage(insertMessage: InsertReceivedMessage): Promise<ReceivedMessage> {
     const result = await db.insert(receivedMessages).values(insertMessage).returning();
     return result[0];
