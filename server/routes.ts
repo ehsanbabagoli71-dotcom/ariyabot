@@ -447,6 +447,195 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
+  // Sub-user management routes (For user_level_1 to manage their sub-users)
+  app.get("/api/sub-users", authenticateToken, async (req: AuthRequest, res) => {
+    try {
+      // Only level 1 users can manage sub-users
+      if (req.user?.role !== "user_level_1") {
+        return res.status(403).json({ message: "فقط کاربران سطح ۱ می‌توانند زیرمجموعه‌ها را مدیریت کنند" });
+      }
+
+      const subUsers = await storage.getSubUsers(req.user.id);
+      
+      // Get subscription data for each sub-user
+      const subUsersWithSubscriptions = await Promise.all(
+        subUsers.map(async (user) => {
+          try {
+            const userSubscription = await storage.getUserSubscription(user.id);
+            let subscriptionInfo = null;
+            if (userSubscription) {
+              const subscription = await storage.getSubscription(userSubscription.subscriptionId);
+              subscriptionInfo = {
+                name: subscription?.name || 'نامشخص',
+                remainingDays: userSubscription.remainingDays,
+                status: userSubscription.status,
+                isTrialPeriod: userSubscription.isTrialPeriod
+              };
+            }
+            
+            return {
+              ...user,
+              password: undefined,
+              subscription: subscriptionInfo
+            };
+          } catch (error) {
+            return {
+              ...user,
+              password: undefined,
+              subscription: null
+            };
+          }
+        })
+      );
+      
+      res.json(subUsersWithSubscriptions);
+    } catch (error) {
+      res.status(500).json({ message: "خطا در دریافت زیرمجموعه‌ها" });
+    }
+  });
+
+  app.post("/api/sub-users", authenticateToken, async (req: AuthRequest, res) => {
+    try {
+      // Only level 1 users can create sub-users
+      if (req.user?.role !== "user_level_1") {
+        return res.status(403).json({ message: "فقط کاربران سطح ۱ می‌توانند زیرمجموعه ایجاد کنند" });
+      }
+
+      const validatedData = insertUserSchema.parse(req.body);
+      
+      // Force role to be user_level_2 and set parent
+      const subUserData = {
+        ...validatedData,
+        role: "user_level_2",
+        parentUserId: req.user.id,
+      };
+      
+      // Check if user already exists
+      const existingEmailUser = await storage.getUserByEmail(subUserData.email);
+      if (existingEmailUser) {
+        return res.status(400).json({ message: "کاربری با این ایمیل قبلاً ثبت نام کرده است" });
+      }
+
+      const existingUsernameUser = await storage.getUserByUsername(subUserData.username!);
+      if (existingUsernameUser) {
+        return res.status(400).json({ message: "کاربری با این نام کاربری قبلاً ثبت نام کرده است" });
+      }
+
+      // Hash password
+      const hashedPassword = await bcrypt.hash(subUserData.password!, 10);
+      
+      const subUser = await storage.createUser({
+        ...subUserData,
+        password: hashedPassword,
+      });
+
+      // Create 7-day free trial subscription for new sub-user
+      try {
+        let trialSubscription = (await storage.getAllSubscriptions()).find(sub => 
+          sub.isDefault === true
+        );
+
+        if (trialSubscription) {
+          await storage.createUserSubscription({
+            userId: subUser.id,
+            subscriptionId: trialSubscription.id,
+            remainingDays: 7,
+            startDate: new Date(),
+            endDate: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000),
+            status: "active",
+            isTrialPeriod: true,
+          });
+        }
+      } catch (trialError) {
+        console.error("خطا در ایجاد اشتراک آزمایشی برای زیرمجموعه:", trialError);
+      }
+
+      res.json({ ...subUser, password: undefined });
+    } catch (error) {
+      if (error instanceof z.ZodError) {
+        return res.status(400).json({ message: "داده های ورودی نامعتبر است", errors: error.errors });
+      }
+      res.status(500).json({ message: "خطا در ایجاد زیرمجموعه" });
+    }
+  });
+
+  app.put("/api/sub-users/:id", authenticateToken, async (req: AuthRequest, res) => {
+    try {
+      // Only level 1 users can update their sub-users
+      if (req.user?.role !== "user_level_1") {
+        return res.status(403).json({ message: "فقط کاربران سطح ۱ می‌توانند زیرمجموعه‌ها را ویرایش کنند" });
+      }
+
+      const { id } = req.params;
+      const updates = req.body;
+      
+      // Check if the sub-user belongs to this level 1 user
+      const existingSubUser = await storage.getUser(id);
+      if (!existingSubUser || existingSubUser.parentUserId !== req.user.id) {
+        return res.status(404).json({ message: "زیرمجموعه یافت نشد یا متعلق به شما نیست" });
+      }
+      
+      // Don't allow changing role or parentUserId
+      const { role, parentUserId, ...allowedUpdates } = updates;
+      
+      const user = await storage.updateUser(id, allowedUpdates);
+      if (!user) {
+        return res.status(404).json({ message: "زیرمجموعه یافت نشد" });
+      }
+
+      res.json({ ...user, password: undefined });
+    } catch (error) {
+      res.status(500).json({ message: "خطا در بروزرسانی زیرمجموعه" });
+    }
+  });
+
+  app.delete("/api/sub-users/:id", authenticateToken, async (req: AuthRequest, res) => {
+    try {
+      // Only level 1 users can delete their sub-users
+      if (req.user?.role !== "user_level_1") {
+        return res.status(403).json({ message: "فقط کاربران سطح ۱ می‌توانند زیرمجموعه‌ها را حذف کنند" });
+      }
+
+      const { id } = req.params;
+      
+      // Check if the sub-user belongs to this level 1 user
+      const existingSubUser = await storage.getUser(id);
+      if (!existingSubUser || existingSubUser.parentUserId !== req.user.id) {
+        return res.status(404).json({ message: "زیرمجموعه یافت نشد یا متعلق به شما نیست" });
+      }
+
+      // Delete user subscriptions
+      const userSubscriptions = await storage.getUserSubscriptionsByUserId(id);
+      for (const subscription of userSubscriptions) {
+        await storage.deleteUserSubscription(subscription.id);
+      }
+
+      // Delete user tickets
+      const userTickets = await storage.getTicketsByUser(id);
+      for (const ticket of userTickets) {
+        await storage.deleteTicket(ticket.id);
+      }
+
+      // Delete user products
+      const userProducts = await storage.getProductsByUser(id);
+      for (const product of userProducts) {
+        await storage.deleteProduct(product.id, id, existingSubUser.role);
+      }
+
+      // Finally delete the sub-user
+      const success = await storage.deleteUser(id);
+      
+      if (!success) {
+        return res.status(500).json({ message: "خطا در حذف زیرمجموعه" });
+      }
+
+      res.json({ message: "زیرمجموعه و تمام اطلاعات مربوطه با موفقیت حذف شد" });
+    } catch (error) {
+      console.error("خطا در حذف زیرمجموعه:", error);
+      res.status(500).json({ message: "خطا در حذف زیرمجموعه" });
+    }
+  });
+
   // Profile routes
   app.put("/api/profile", authenticateToken, async (req: AuthRequest, res) => {
     try {

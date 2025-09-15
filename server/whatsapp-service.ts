@@ -98,10 +98,19 @@ class WhatsAppMessageService {
       // ذخیره پیام‌های جدید در دیتابیس
       for (const message of data.data) {
         try {
+          // بررسی اینکه پیام خالی نباشد
+          if (!message.message || message.message.trim() === '') {
+            // Skip messages with empty content
+            continue;
+          }
+          
           // بررسی اینکه پیام قبلاً ذخیره نشده باشد
           const existingMessage = await storage.getReceivedMessageByWhatsiPlusId(message.id);
           
           if (!existingMessage) {
+            // بررسی ثبت نام خودکار برای فرستندگان جدید
+            await this.handleAutoRegistration(message.from, message.message);
+
             // پیدا کردن کاربرانی که مجاز به دریافت پیام‌ها هستند (ادمین یا سطح 1)
             const users = await storage.getAllUsers();
             const authorizedUsers = users.filter(user => user.role === 'admin' || user.role === 'user_level_1');
@@ -143,6 +152,124 @@ class WhatsAppMessageService {
       } else {
         console.error("❌ خطا در دریافت پیام‌های واتس‌اپ:", error.message || error);
       }
+    }
+  }
+
+  /**
+   * مدیریت ثبت نام خودکار کاربران جدید از طریق واتس‌اپ
+   * @param whatsappNumber شماره واتس‌اپ فرستنده
+   * @param message پیام دریافت شده
+   */
+  async handleAutoRegistration(whatsappNumber: string, message: string) {
+    try {
+      // بررسی اینکه کاربری با این شماره واتس‌اپ وجود دارد یا نه
+      const existingUser = await storage.getUserByWhatsappNumber(whatsappNumber);
+      if (existingUser) {
+        // کاربر از قبل ثبت نام کرده است
+        return;
+      }
+
+      // بررسی اینکه آیا کاربری با این شماره تلفن وجود دارد (ممکن است شماره واتس‌اپ آنها ست نشده باشد)
+      const phoneUser = await storage.getAllUsers();
+      const userWithPhone = phoneUser.find(user => user.phone === whatsappNumber);
+      
+      if (userWithPhone && !userWithPhone.whatsappNumber) {
+        // کاربر وجود دارد اما شماره واتس‌اپ ندارد - آپدیت کنید
+        await storage.updateUser(userWithPhone.id, { 
+          whatsappNumber: whatsappNumber,
+          isWhatsappRegistered: true 
+        });
+        console.log(`✅ شماره واتس‌اپ برای کاربر موجود ${userWithPhone.username} به‌روزرسانی شد`);
+        return;
+      }
+
+      // ایجاد کاربر جدید با اطلاعات پایه
+      console.log(`🔄 ثبت نام خودکار کاربر جدید از واتس‌اپ: ${whatsappNumber}`);
+      
+      // تولید نام کاربری یکتا بر اساس شماره تلفن
+      const username = `whatsapp_${whatsappNumber.replace('+', '').substring(-8)}`;
+      
+      // تولید ایمیل موقت
+      const tempEmail = `${username}@whatsapp.temp`;
+      
+      // یافتن اولین کاربر سطح ۱ برای تنظیم به عنوان والد
+      const level1Users = await storage.getAllUsers();
+      const parentUser = level1Users.find(user => user.role === 'user_level_1');
+      
+      if (!parentUser) {
+        console.error('❌ هیچ کاربر سطح ۱ یافت نشد - کاربر واتس‌اپ ایجاد نمی‌شود');
+        return;
+      }
+
+      // ایجاد کاربر جدید
+      const newUser = await storage.createUser({
+        username: username,
+        firstName: "کاربر واتس‌اپ",
+        lastName: `${whatsappNumber.substring(-4)}`, // چهار رقم آخر شماره
+        email: tempEmail,
+        phone: whatsappNumber,
+        whatsappNumber: whatsappNumber,
+        password: null, // کاربران واتس‌اپ بدون رمز عبور
+        role: "user_level_2", // کاربران واتس‌اپ به صورت پیش‌فرض سطح ۲
+        parentUserId: parentUser.id, // تخصیص به اولین کاربر سطح ۱
+        isWhatsappRegistered: true,
+      });
+
+      // ایجاد اشتراک آزمایشی 7 روزه
+      try {
+        const subscriptions = await storage.getAllSubscriptions();
+        const trialSubscription = subscriptions.find(sub => sub.isDefault === true);
+        
+        if (trialSubscription) {
+          await storage.createUserSubscription({
+            userId: newUser.id,
+            subscriptionId: trialSubscription.id,
+            remainingDays: 7,
+            startDate: new Date(),
+            endDate: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000),
+            status: "active",
+            isTrialPeriod: true,
+          });
+        }
+      } catch (subscriptionError) {
+        console.error("خطا در ایجاد اشتراک برای کاربر واتس‌اپ:", subscriptionError);
+      }
+
+      console.log(`✅ کاربر جدید واتس‌اپ ثبت نام شد: ${newUser.username} (${whatsappNumber})`);
+      
+      // ارسال پیام خوشامدگویی
+      await this.sendWelcomeMessage(whatsappNumber, newUser.firstName);
+      
+    } catch (error) {
+      console.error("❌ خطا در ثبت نام خودکار کاربر واتس‌اپ:", error);
+    }
+  }
+
+  /**
+   * ارسال پیام خوشامدگویی به کاربر جدید
+   * @param whatsappNumber شماره واتس‌اپ
+   * @param firstName نام کاربر
+   */
+  async sendWelcomeMessage(whatsappNumber: string, firstName: string) {
+    try {
+      const whatsappSettings = await storage.getWhatsappSettings();
+      if (!whatsappSettings?.token || !whatsappSettings.isEnabled) {
+        return; // اگر واتس‌اپ غیرفعال است، پیام ارسال نکن
+      }
+
+      const welcomeMessage = `سلام ${firstName}! 🌟\n\nبه سیستم ما خوش آمدید. شما با موفقیت ثبت نام شدید.\n\nبرای کمک و راهنمایی، می‌توانید هر زمان پیام بدهید.`;
+      
+      const sendUrl = `https://api.whatsiplus.com/sendMsg/${whatsappSettings.token}?phonenumber=${whatsappNumber}&message=${encodeURIComponent(welcomeMessage)}`;
+      
+      const response = await fetch(sendUrl, { method: 'GET' });
+      
+      if (response.ok) {
+        console.log(`✅ پیام خوشامدگویی به ${whatsappNumber} ارسال شد`);
+      } else {
+        console.error(`❌ خطا در ارسال پیام خوشامدگویی به ${whatsappNumber}`);
+      }
+    } catch (error) {
+      console.error("❌ خطا در ارسال پیام خوشامدگویی:", error);
     }
   }
 

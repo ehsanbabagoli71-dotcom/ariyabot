@@ -9,10 +9,13 @@ export interface IStorage {
   getUserByUsername(username: string): Promise<User | undefined>;
   getUserByEmailOrUsername(emailOrUsername: string): Promise<User | undefined>;
   getUserByGoogleId(googleId: string): Promise<User | undefined>;
+  getUserByWhatsappNumber(whatsappNumber: string): Promise<User | undefined>;
   createUser(user: InsertUser): Promise<User>;
   updateUser(id: string, user: Partial<User>): Promise<User | undefined>;
   deleteUser(id: string): Promise<boolean>;
   getAllUsers(): Promise<User[]>;
+  getSubUsers(parentUserId: string): Promise<User[]>;
+  getUsersVisibleToUser(userId: string, userRole: string): Promise<User[]>;
   
   // Tickets
   getTicket(id: string): Promise<Ticket | undefined>;
@@ -71,7 +74,7 @@ export interface IStorage {
   getAllCategories(currentUserId: string, userRole: string): Promise<Category[]>;
   getCategoriesByParent(parentId: string | null, currentUserId: string, userRole: string): Promise<Category[]>;
   getCategoryTree(currentUserId: string, userRole: string): Promise<Category[]>;
-  createCategory(category: InsertCategory): Promise<Category>;
+  createCategory(category: InsertCategory, createdBy: string): Promise<Category>;
   updateCategory(id: string, category: Partial<Category>, currentUserId: string, userRole: string): Promise<Category | undefined>;
   deleteCategory(id: string, currentUserId: string, userRole: string): Promise<boolean>;
   reorderCategories(updates: { id: string; order: number; parentId?: string | null }[]): Promise<boolean>;
@@ -125,10 +128,13 @@ export class MemStorage implements IStorage {
       lastName: "مدیر",
       email: "ehsan@admin.com",
       phone: "09123456789",
+      whatsappNumber: null,
       password: hashedPassword,
       googleId: null,
       role: "admin",
+      parentUserId: null,
       profilePicture: null,
+      isWhatsappRegistered: false,
       createdAt: new Date(),
     };
     this.users.set(adminUser.id, adminUser);
@@ -201,6 +207,9 @@ export class MemStorage implements IStorage {
       password: insertUser.password || null,
       googleId: insertUser.googleId || null,
       profilePicture: insertUser.profilePicture || null,
+      whatsappNumber: insertUser.whatsappNumber || null,
+      parentUserId: insertUser.parentUserId || null,
+      isWhatsappRegistered: insertUser.isWhatsappRegistered || false,
       createdAt: new Date(),
     };
     this.users.set(id, user);
@@ -222,6 +231,31 @@ export class MemStorage implements IStorage {
 
   async getAllUsers(): Promise<User[]> {
     return Array.from(this.users.values());
+  }
+
+  async getUserByWhatsappNumber(whatsappNumber: string): Promise<User | undefined> {
+    return Array.from(this.users.values()).find(user => user.whatsappNumber === whatsappNumber);
+  }
+
+  async getSubUsers(parentUserId: string): Promise<User[]> {
+    return Array.from(this.users.values()).filter(user => user.parentUserId === parentUserId);
+  }
+
+  async getUsersVisibleToUser(userId: string, userRole: string): Promise<User[]> {
+    const allUsers = Array.from(this.users.values());
+    
+    if (userRole === 'admin') {
+      // Admin can see all users
+      return allUsers;
+    } else if (userRole === 'user_level_1') {
+      // Level 1 users can see their sub-users (level 2) only
+      return allUsers.filter(user => user.parentUserId === userId);
+    } else if (userRole === 'user_level_2') {
+      // Level 2 users can only see themselves
+      return allUsers.filter(user => user.id === userId);
+    }
+    
+    return [];
   }
 
   // Tickets
@@ -641,7 +675,7 @@ export class MemStorage implements IStorage {
     return allCategories.filter(cat => cat.parentId === null);
   }
 
-  async createCategory(insertCategory: InsertCategory): Promise<Category> {
+  async createCategory(insertCategory: InsertCategory, createdBy: string): Promise<Category> {
     const id = randomUUID();
     const category: Category = {
       ...insertCategory,
@@ -650,7 +684,7 @@ export class MemStorage implements IStorage {
       parentId: insertCategory.parentId || null,
       order: insertCategory.order || 0,
       isActive: insertCategory.isActive !== undefined ? insertCategory.isActive : true,
-      createdBy: insertCategory.createdBy,
+      createdBy: createdBy, // Server provides this field
       createdAt: new Date(),
       updatedAt: new Date(),
     };

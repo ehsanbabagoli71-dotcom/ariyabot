@@ -576,4 +576,27 @@ export class DbStorage implements IStorage {
       return false;
     }
   }
+
+  // Missing methods that were causing LSP errors
+  async getUserByWhatsappNumber(whatsappNumber: string): Promise<User | undefined> {
+    const result = await db.select().from(users).where(eq(users.whatsappNumber, whatsappNumber)).limit(1);
+    return result[0];
+  }
+
+  async getSubUsers(parentUserId: string): Promise<User[]> {
+    return await db.select().from(users).where(eq(users.parentUserId, parentUserId));
+  }
+
+  async getUsersVisibleToUser(userId: string, userRole: string): Promise<User[]> {
+    if (userRole === 'admin') {
+      // Admin can see all users
+      return await db.select().from(users);
+    } else if (userRole === 'user_level_1') {
+      // Level 1 users can see their sub-users (level 2)
+      return await db.select().from(users).where(eq(users.parentUserId, userId));
+    } else {
+      // Level 2 users cannot see other users
+      return [];
+    }
+  }
 }

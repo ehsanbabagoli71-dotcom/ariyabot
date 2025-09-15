@@ -281,6 +281,25 @@ export function Sidebar() {
             </Collapsible>
           </li>
 
+          {/* Users Management - Level 1 Only */}
+          {user?.role === "user_level_1" && (
+            <li>
+              <Link href="/sub-users">
+                <Button
+                  variant={isActive("/sub-users") ? "default" : "ghost"}
+                  className={cn(
+                    "w-full justify-start",
+                    isActive("/sub-users") && "bg-primary text-primary-foreground"
+                  )}
+                  data-testid="link-sub-users"
+                >
+                  <Users className="w-5 h-5 ml-2" />
+                  مدیریت کاربران
+                </Button>
+              </Link>
+            </li>
+          )}
+
           {/* User Profile - After WhatsApp */}
           {user?.role !== "admin" && (
             <li>

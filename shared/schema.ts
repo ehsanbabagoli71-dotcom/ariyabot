@@ -10,10 +10,13 @@ export const users = pgTable("users", {
   lastName: text("last_name").notNull(),
   email: text("email").notNull().unique(),
   phone: text("phone").notNull(),
+  whatsappNumber: text("whatsapp_number"), // WhatsApp number for automatic registration
   password: text("password"),
   googleId: text("google_id"),
   role: text("role").notNull().default("user_level_1"), // admin, user_level_1, user_level_2
+  parentUserId: varchar("parent_user_id"), // For hierarchical user management - will add reference later
   profilePicture: text("profile_picture"),
+  isWhatsappRegistered: boolean("is_whatsapp_registered").notNull().default(false), // Track if user was auto-registered via WhatsApp
   createdAt: timestamp("created_at").defaultNow(),
 });
 
