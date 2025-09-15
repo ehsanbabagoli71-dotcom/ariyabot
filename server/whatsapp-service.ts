@@ -21,6 +21,7 @@ interface WhatsiPlusResponse {
 class WhatsAppMessageService {
   private intervalId: NodeJS.Timeout | null = null;
   private isRunning = false;
+  private isFetching = false;
   private lastFetchTime: Date | null = null;
 
   async start() {
@@ -51,6 +52,13 @@ class WhatsAppMessageService {
   }
 
   async fetchMessages() {
+    // جلوگیری از race condition - اگر در حال fetch کردن هستیم، نادیده بگیر
+    if (this.isFetching) {
+      return;
+    }
+
+    this.isFetching = true;
+    
     try {
       console.log(`🔄 چک کردن پیام‌های جدید...`);
 
@@ -75,6 +83,8 @@ class WhatsAppMessageService {
 
     } catch (error: any) {
       console.error("❌ خطا در دریافت پیام‌های واتس‌اپ:", error.message || error);
+    } finally {
+      this.isFetching = false;
     }
   }
 
@@ -124,7 +134,7 @@ class WhatsAppMessageService {
           
           if (!existingMessage) {
             // بررسی ثبت نام خودکار برای فرستندگان جدید
-            await this.handleAutoRegistration(message.from, message.message);
+            await this.handleAutoRegistration(message.from, message.message, user.id);
 
             // ذخیره پیام فقط برای این کاربر
             const savedMessage = await storage.createReceivedMessage({
@@ -223,7 +233,7 @@ class WhatsAppMessageService {
           const existingMessage = await storage.getReceivedMessageByWhatsiPlusIdAndUser(message.id, admin.id);
           
           if (!existingMessage) {
-            await this.handleAutoRegistration(message.from, message.message);
+            await this.handleAutoRegistration(message.from, message.message, admin.id);
 
             await storage.createReceivedMessage({
               userId: admin.id,
@@ -260,11 +270,78 @@ class WhatsAppMessageService {
   }
 
   /**
+   * تجزیه نام و نام خانوادگی از پیام کاربر
+   * @param message پیام کاربر
+   * @returns object شامل firstName و lastName یا null
+   */
+  private parseNameFromMessage(message: string): { firstName: string; lastName: string } | null {
+    // پاک کردن کاراکترهای اضافی و تقسیم کلمات
+    const words = message.trim().split(/\s+/).filter(word => word.length > 0);
+    
+    if (words.length >= 2) {
+      return {
+        firstName: words[0],
+        lastName: words.slice(1).join(' ') // اگر نام خانوادگی چند کلمه باشد
+      };
+    }
+    
+    return null;
+  }
+
+  /**
+   * ارسال پیام درخواست نام و نام خانوادگی
+   * @param whatsappNumber شماره واتس‌اپ
+   * @param fromUser کاربر ارسال‌کننده 
+   */
+  async sendNameRequestMessage(whatsappNumber: string, fromUser: any) {
+    try {
+      let whatsappToken: string;
+      
+      // انتخاب توکن مناسب برای ارسال
+      if (fromUser && fromUser.role === 'user_level_1' && fromUser.whatsappToken && fromUser.whatsappToken.trim() !== '') {
+        whatsappToken = fromUser.whatsappToken;
+      } else {
+        const whatsappSettings = await storage.getWhatsappSettings();
+        if (!whatsappSettings?.token || !whatsappSettings.isEnabled) {
+          console.log("⚠️ توکن واتس‌اپ برای درخواست نام موجود نیست");
+          return false;
+        }
+        whatsappToken = whatsappSettings.token;
+      }
+
+      const nameRequestMessage = `سلام! 👋
+      
+برای ثبت‌نام در سیستم، لطفاً نام و نام خانوادگی خود را بنویسید.
+
+مثال: احمد محمدی
+
+منتظر پاسخ شما هستیم.`;
+      
+      const sendUrl = `https://api.whatsiplus.com/sendMsg/${whatsappToken}?phonenumber=${whatsappNumber}&message=${encodeURIComponent(nameRequestMessage)}`;
+      
+      const response = await fetch(sendUrl, { method: 'GET' });
+      
+      if (response.ok) {
+        console.log(`✅ پیام درخواست نام به ${whatsappNumber} ارسال شد`);
+        return true;
+      } else {
+        console.error(`❌ خطا در ارسال پیام درخواست نام به ${whatsappNumber}`);
+        return false;
+      }
+    } catch (error) {
+      console.error("❌ خطا در ارسال پیام درخواست نام:", error);
+      return false;
+    }
+  }
+
+  /**
    * مدیریت ثبت نام خودکار کاربران جدید از طریق واتس‌اپ
+   * حالا اول نام و نام خانوادگی را می‌پرسد
    * @param whatsappNumber شماره واتس‌اپ فرستنده
    * @param message پیام دریافت شده
+   * @param fromUserId شناسه کاربری که پیام را دریافت کرده (کاربر سطح 1)
    */
-  async handleAutoRegistration(whatsappNumber: string, message: string) {
+  async handleAutoRegistration(whatsappNumber: string, message: string, fromUserId?: string) {
     try {
       // بررسی اینکه کاربری با این شماره واتس‌اپ وجود دارد یا نه
       const existingUser = await storage.getUserByWhatsappNumber(whatsappNumber);
@@ -274,8 +351,8 @@ class WhatsAppMessageService {
       }
 
       // بررسی اینکه آیا کاربری با این شماره تلفن وجود دارد (ممکن است شماره واتس‌اپ آنها ست نشده باشد)
-      const phoneUser = await storage.getAllUsers();
-      const userWithPhone = phoneUser.find(user => user.phone === whatsappNumber);
+      const allUsers = await storage.getAllUsers();
+      const userWithPhone = allUsers.find(user => user.phone === whatsappNumber);
       
       if (userWithPhone && !userWithPhone.whatsappNumber) {
         // کاربر وجود دارد اما شماره واتس‌اپ ندارد - آپدیت کنید
@@ -287,35 +364,45 @@ class WhatsAppMessageService {
         return;
       }
 
-      // ایجاد کاربر جدید با اطلاعات پایه
-      console.log(`🔄 ثبت نام خودکار کاربر جدید از واتس‌اپ: ${whatsappNumber}`);
+      // یافتن کاربر سطح ۱ که این پیام را دریافت کرده
+      const fromUser = fromUserId ? await storage.getUser(fromUserId) : 
+                      allUsers.find(user => user.role === 'user_level_1');
       
-      // تولید نام کاربری یکتا بر اساس شماره تلفن
-      const username = `whatsapp_${whatsappNumber.replace('+', '').substring(-8)}`;
-      
-      // تولید ایمیل موقت
-      const tempEmail = `${username}@whatsapp.temp`;
-      
-      // یافتن اولین کاربر سطح ۱ برای تنظیم به عنوان والد
-      const level1Users = await storage.getAllUsers();
-      const parentUser = level1Users.find(user => user.role === 'user_level_1');
-      
-      if (!parentUser) {
+      if (!fromUser) {
         console.error('❌ هیچ کاربر سطح ۱ یافت نشد - کاربر واتس‌اپ ایجاد نمی‌شود');
         return;
       }
 
-      // ایجاد کاربر جدید
+      // تلاش برای استخراج نام و نام خانوادگی از پیام
+      const parsedName = this.parseNameFromMessage(message);
+      
+      if (!parsedName) {
+        // پیام شامل نام و نام خانوادگی نیست - درخواست کن
+        console.log(`📝 درخواست نام و نام خانوادگی از ${whatsappNumber}`);
+        await this.sendNameRequestMessage(whatsappNumber, fromUser);
+        return;
+      }
+
+      // پیام شامل نام و نام خانوادگی است - ثبت نام کن
+      console.log(`🔄 ثبت نام خودکار کاربر جدید از واتس‌اپ: ${whatsappNumber}`);
+      
+      // تولید نام کاربری یکتا بر اساس شماره تلفن
+      const username = `whatsapp_${whatsappNumber.replace('+', '').slice(-8)}`;
+      
+      // تولید ایمیل موقت
+      const tempEmail = `${username}@whatsapp.temp`;
+
+      // ایجاد کاربر جدید با نام و نام خانوادگی دریافت شده
       const newUser = await storage.createUser({
         username: username,
-        firstName: "کاربر واتس‌اپ",
-        lastName: `${whatsappNumber.substring(-4)}`, // چهار رقم آخر شماره
+        firstName: parsedName.firstName,
+        lastName: parsedName.lastName,
         email: tempEmail,
         phone: whatsappNumber,
         whatsappNumber: whatsappNumber,
         password: null, // کاربران واتس‌اپ بدون رمز عبور
         role: "user_level_2", // کاربران واتس‌اپ به صورت پیش‌فرض سطح ۲
-        parentUserId: parentUser.id, // تخصیص به اولین کاربر سطح ۱
+        parentUserId: fromUser.id, // تخصیص به کاربر سطح ۱ که پیام را دریافت کرده
         isWhatsappRegistered: true,
       });
 
@@ -339,10 +426,10 @@ class WhatsAppMessageService {
         console.error("خطا در ایجاد اشتراک برای کاربر واتس‌اپ:", subscriptionError);
       }
 
-      console.log(`✅ کاربر جدید واتس‌اپ ثبت نام شد: ${newUser.username} (${whatsappNumber})`);
+      console.log(`✅ کاربر جدید واتس‌اپ ثبت نام شد: ${newUser.username} (${parsedName.firstName} ${parsedName.lastName})`);
       
-      // ارسال پیام خوشامدگویی
-      await this.sendWelcomeMessage(whatsappNumber, newUser.firstName);
+      // ارسال پیام خوشامدگویی با نام واقعی
+      await this.sendWelcomeMessage(whatsappNumber, parsedName.firstName, fromUser);
       
     } catch (error) {
       console.error("❌ خطا در ثبت نام خودکار کاربر واتس‌اپ:", error);
@@ -353,17 +440,32 @@ class WhatsAppMessageService {
    * ارسال پیام خوشامدگویی به کاربر جدید
    * @param whatsappNumber شماره واتس‌اپ
    * @param firstName نام کاربر
+   * @param fromUser کاربر ارسال‌کننده 
    */
-  async sendWelcomeMessage(whatsappNumber: string, firstName: string) {
+  async sendWelcomeMessage(whatsappNumber: string, firstName: string, fromUser?: any) {
     try {
-      const whatsappSettings = await storage.getWhatsappSettings();
-      if (!whatsappSettings?.token || !whatsappSettings.isEnabled) {
-        return; // اگر واتس‌اپ غیرفعال است، پیام ارسال نکن
+      let whatsappToken: string;
+      
+      // انتخاب توکن مناسب برای ارسال
+      if (fromUser && fromUser.role === 'user_level_1' && fromUser.whatsappToken && fromUser.whatsappToken.trim() !== '') {
+        whatsappToken = fromUser.whatsappToken;
+      } else {
+        const whatsappSettings = await storage.getWhatsappSettings();
+        if (!whatsappSettings?.token || !whatsappSettings.isEnabled) {
+          return; // اگر واتس‌اپ غیرفعال است، پیام ارسال نکن
+        }
+        whatsappToken = whatsappSettings.token;
       }
 
-      const welcomeMessage = `سلام ${firstName}! 🌟\n\nبه سیستم ما خوش آمدید. شما با موفقیت ثبت نام شدید.\n\nبرای کمک و راهنمایی، می‌توانید هر زمان پیام بدهید.`;
+      const welcomeMessage = `سلام ${firstName}! 🌟
+
+به سیستم ما خوش آمدید. شما با موفقیت ثبت نام شدید.
+
+🎁 اشتراک رایگان 7 روزه به حساب شما اضافه شد.
+
+برای کمک و راهنمایی، می‌توانید هر زمان پیام بدهید.`;
       
-      const sendUrl = `https://api.whatsiplus.com/sendMsg/${whatsappSettings.token}?phonenumber=${whatsappNumber}&message=${encodeURIComponent(welcomeMessage)}`;
+      const sendUrl = `https://api.whatsiplus.com/sendMsg/${whatsappToken}?phonenumber=${whatsappNumber}&message=${encodeURIComponent(welcomeMessage)}`;
       
       const response = await fetch(sendUrl, { method: 'GET' });
       
@@ -379,6 +481,7 @@ class WhatsAppMessageService {
 
   /**
    * یک پاسخ هوشمند برای پیام ورودی ایجاد کرده و آن را از طریق واتس‌اپ ارسال می‌کند.
+   * هر کاربر سطح 1 با توکن اختصاصی خود پاسخ می‌دهد
    * @param sender شماره موبایل فرستنده پیام
    * @param incomingMessage پیام دریافت شده از کاربر
    * @param whatsiPlusId شناسه پیام از WhatsiPlus API
@@ -388,6 +491,29 @@ class WhatsAppMessageService {
     try {
       console.log(`🤖 در حال تولید پاسخ برای پیام از ${sender}...`);
       
+      // دریافت کاربری که این پیام را دریافت کرده
+      const user = await storage.getUser(userId);
+      if (!user) {
+        console.log("❌ کاربر یافت نشد");
+        return;
+      }
+
+      // اگر کاربر سطح 1 است و توکن شخصی دارد، از توکن خودش استفاده کن
+      let whatsappToken: string;
+      if (user.role === 'user_level_1' && user.whatsappToken && user.whatsappToken.trim() !== '') {
+        whatsappToken = user.whatsappToken;
+        console.log(`📱 استفاده از توکن اختصاصی کاربر ${user.username}`);
+      } else {
+        // در غیر این صورت از تنظیمات عمومی استفاده کن
+        const whatsappSettings = await storage.getWhatsappSettings();
+        if (!whatsappSettings?.token || !whatsappSettings.isEnabled) {
+          console.log("⚠️ تنظیمات واتس‌اپ برای ارسال پاسخ خودکار فعال نیست");
+          return;
+        }
+        whatsappToken = whatsappSettings.token;
+        console.log("📱 استفاده از توکن عمومی");
+      }
+
       // دریافت تنظیمات هوش مصنوعی
       const aiTokenSettings = await storage.getAiTokenSettings();
       if (!aiTokenSettings?.token || !aiTokenSettings.isActive) {
@@ -397,13 +523,6 @@ class WhatsAppMessageService {
 
       // تولید پاسخ با Gemini AI
       const aiResponse = await geminiService.generateResponse(incomingMessage);
-      
-      // دریافت تنظیمات واتس‌اپ
-      const whatsappSettings = await storage.getWhatsappSettings();
-      if (!whatsappSettings?.token || !whatsappSettings.isEnabled) {
-        console.log("⚠️ تنظیمات واتس‌اپ برای ارسال پاسخ خودکار فعال نیست");
-        return;
-      }
 
       // محدود کردن طول پاسخ برای جلوگیری از خطای 414
       const maxLength = 200; // حداکثر 200 کاراکتر
@@ -412,9 +531,9 @@ class WhatsAppMessageService {
         : aiResponse;
 
       // ارسال پاسخ از طریق WhatsiPlus API با GET method
-      const sendUrl = `https://api.whatsiplus.com/sendMsg/${whatsappSettings.token}?phonenumber=${sender}&message=${encodeURIComponent(finalResponse)}`;
+      const sendUrl = `https://api.whatsiplus.com/sendMsg/${whatsappToken}?phonenumber=${sender}&message=${encodeURIComponent(finalResponse)}`;
       
-      console.log(`🔄 در حال ارسال پاسخ خودکار به ${sender}...`);
+      console.log(`🔄 در حال ارسال پاسخ خودکار به ${sender} از طرف ${user.username}...`);
       const sendResponse = await fetch(sendUrl, { method: 'GET' });
 
       if (sendResponse.ok) {
@@ -426,20 +545,14 @@ class WhatsAppMessageService {
           status: "sent"
         });
 
-        // تغییر وضعیت پیام به خوانده شده
-        const users = await storage.getAllUsers();
-        const authorizedUsers = users.filter(user => user.role === 'admin' || user.role === 'user_level_1');
-        
-        for (const user of authorizedUsers) {
-          const userMessages = await storage.getReceivedMessagesByUser(user.id);
-          const userMessage = userMessages.find(msg => msg.whatsiPlusId === whatsiPlusId);
-          if (userMessage) {
-            await storage.updateReceivedMessageStatus(userMessage.id, "خوانده شده");
-            console.log(`📖 وضعیت پیام ${whatsiPlusId} برای کاربر ${user.username} به "خوانده شده" تغییر کرد`);
-          }
+        // تغییر وضعیت پیام به خوانده شده فقط برای همان کاربر
+        const userMessage = await storage.getReceivedMessageByWhatsiPlusIdAndUser(whatsiPlusId, userId);
+        if (userMessage) {
+          await storage.updateReceivedMessageStatus(userMessage.id, "خوانده شده");
+          console.log(`📖 وضعیت پیام ${whatsiPlusId} برای کاربر ${user.username} به "خوانده شده" تغییر کرد`);
         }
         
-        console.log(`✅ پاسخ خودکار به ${sender} ارسال شد: "${aiResponse.substring(0, 50)}..."`);
+        console.log(`✅ پاسخ خودکار به ${sender} از طرف ${user.username} ارسال شد: "${aiResponse.substring(0, 50)}..."`);
       } else {
         const errorText = await sendResponse.text();
         console.error(`❌ خطا در ارسال پاسخ خودکار به ${sender}:`, errorText);

@@ -493,13 +493,18 @@ export class MemStorage implements IStorage {
     return Array.from(this.receivedMessages.values()).find(message => message.whatsiPlusId === whatsiPlusId);
   }
 
+  async getReceivedMessageByWhatsiPlusIdAndUser(whatsiPlusId: string, userId: string): Promise<ReceivedMessage | undefined> {
+    return Array.from(this.receivedMessages.values()).find(message => 
+      message.whatsiPlusId === whatsiPlusId && message.userId === userId
+    );
+  }
+
   async createReceivedMessage(insertMessage: InsertReceivedMessage): Promise<ReceivedMessage> {
     const id = randomUUID();
     const message: ReceivedMessage = {
       ...insertMessage,
       id,
       status: insertMessage.status || "خوانده نشده",
-      whatsiPlusId: insertMessage.whatsiPlusId || null,
       originalDate: insertMessage.originalDate || null,
       timestamp: new Date(),
     };
