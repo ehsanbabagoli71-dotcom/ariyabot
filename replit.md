@@ -8,6 +8,14 @@ Preferred communication style: Simple, everyday language.
 
 # Recent Changes
 
+- **پیاده‌سازی فیلتر کاربران سطح‌بندی شده و مخفی کردن کاربران سطح 2 از پنل ادمین (2025-09-15)**
+  - کاربران سطح 2 دیگر در پنل ادمین قابل مشاهده نیستند
+  - کاربران سطح 2 فقط برای کاربر سطح 1 والد خود قابل مشاهده‌اند در صفحه مدیریت زیرکاربران
+  - endpoint /api/users اصلاح شد تا از روش getUsersVisibleToUser() برای فیلتر کردن استفاده کند
+  - endpoint /api/sub-users قبلاً به درستی پیاده‌سازی شده بود و فقط زیرکاربران مربوط به همان کاربر سطح 1 را نمایش می‌دهد
+  - امنیت سیستم حفظ شده و هیچ نشتی در دسترسی کاربران وجود ندارد
+  - Frontend از endpoint های مناسب استفاده می‌کند بر اساس نقش کاربر (ادمین یا سطح 1)
+  - هوش مصنوعی واتس‌اپ در طول فرآیند ثبت نام کاربران جدید پاسخ نمی‌دهد
 - **Project successfully migrated to Replit environment and fully configured (2025-09-15)**
   - PostgreSQL database created and schema successfully applied
   - All dependencies installed and working correctly
