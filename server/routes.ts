@@ -416,7 +416,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       // Delete user products (if any)
       const userProducts = await storage.getProductsByUser(id);
       for (const product of userProducts) {
-        await storage.deleteProduct(product.id);
+        await storage.deleteProduct(product.id, id, user.role);
       }
 
       // Finally delete the user
@@ -774,10 +774,14 @@ export async function registerRoutes(app: Express): Promise<Server> {
       
       // Validate categoryId if provided
       if (req.body.categoryId) {
-        const category = await storage.getCategory(req.body.categoryId);
+        console.log(`🔍 DEBUG CREATE: Checking category ${req.body.categoryId} for user ${req.user!.id} with role ${req.user!.role}`);
+        const category = await storage.getCategory(req.body.categoryId, req.user!.id, req.user!.role);
+        console.log(`🔍 DEBUG CREATE: Found category:`, category);
         if (!category || !category.isActive) {
+          console.log(`❌ DEBUG CREATE: Category validation failed - category: ${!!category}, isActive: ${category?.isActive}`);
           return res.status(400).json({ message: "دسته‌بندی انتخاب شده معتبر نیست" });
         }
+        console.log(`✅ DEBUG CREATE: Category validation passed`);
       }
 
       const validatedData = insertProductSchema.parse({
@@ -810,6 +814,14 @@ export async function registerRoutes(app: Express): Promise<Server> {
       
       const { id } = req.params;
       let updates = { ...req.body };
+      
+      // Validate categoryId if provided
+      if (req.body.categoryId) {
+        const category = await storage.getCategory(req.body.categoryId, req.user!.id, req.user!.role);
+        if (!category || !category.isActive) {
+          return res.status(400).json({ message: "دسته‌بندی انتخاب شده معتبر نیست" });
+        }
+      }
       
       // اگر فایل جدید آپلود شده باشد، آن را به base64 تبدیل می‌کنیم
       if ((req as any).file) {

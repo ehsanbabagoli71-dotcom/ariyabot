@@ -650,6 +650,7 @@ export class MemStorage implements IStorage {
       parentId: insertCategory.parentId || null,
       order: insertCategory.order || 0,
       isActive: insertCategory.isActive !== undefined ? insertCategory.isActive : true,
+      createdBy: insertCategory.createdBy,
       createdAt: new Date(),
       updatedAt: new Date(),
     };
