@@ -134,7 +134,7 @@ class WhatsAppMessageService {
           
           if (!existingMessage) {
             // بررسی ثبت نام خودکار برای فرستندگان جدید
-            await this.handleAutoRegistration(message.from, message.message, user.id);
+            const isUserInRegistrationProcess = await this.handleAutoRegistration(message.from, message.message, user.id);
 
             // ذخیره پیام فقط برای این کاربر
             const savedMessage = await storage.createReceivedMessage({
@@ -146,8 +146,8 @@ class WhatsAppMessageService {
               originalDate: message.date
             });
 
-            // پاسخ خودکار با Gemini AI (اگر برای این کاربر فعال باشد)
-            if (geminiService.isActive()) {
+            // پاسخ خودکار با Gemini AI فقط اگر کاربر ثبت‌نام کامل شده باشد
+            if (geminiService.isActive() && !isUserInRegistrationProcess) {
               await this.handleAutoResponse(message.from, message.message, message.id, user.id);
             }
             
@@ -233,7 +233,7 @@ class WhatsAppMessageService {
           const existingMessage = await storage.getReceivedMessageByWhatsiPlusIdAndUser(message.id, admin.id);
           
           if (!existingMessage) {
-            await this.handleAutoRegistration(message.from, message.message, admin.id);
+            const isUserInRegistrationProcess = await this.handleAutoRegistration(message.from, message.message, admin.id);
 
             await storage.createReceivedMessage({
               userId: admin.id,
@@ -244,7 +244,8 @@ class WhatsAppMessageService {
               originalDate: message.date
             });
 
-            if (geminiService.isActive()) {
+            // پاسخ خودکار فقط اگر کاربر ثبت‌نام کامل شده باشد
+            if (geminiService.isActive() && !isUserInRegistrationProcess) {
               await this.handleAutoResponse(message.from, message.message, message.id, admin.id);
             }
             
@@ -340,14 +341,15 @@ class WhatsAppMessageService {
    * @param whatsappNumber شماره واتس‌اپ فرستنده
    * @param message پیام دریافت شده
    * @param fromUserId شناسه کاربری که پیام را دریافت کرده (کاربر سطح 1)
+   * @returns boolean - true اگر کاربر در حال ثبت‌نام است، false اگر ثبت‌نام کامل شده یا وجود دارد
    */
-  async handleAutoRegistration(whatsappNumber: string, message: string, fromUserId?: string) {
+  async handleAutoRegistration(whatsappNumber: string, message: string, fromUserId?: string): Promise<boolean> {
     try {
       // بررسی اینکه کاربری با این شماره واتس‌اپ وجود دارد یا نه
       const existingUser = await storage.getUserByWhatsappNumber(whatsappNumber);
       if (existingUser) {
-        // کاربر از قبل ثبت نام کرده است
-        return;
+        // کاربر از قبل ثبت نام کرده است - AI می‌تواند پاسخ دهد
+        return false;
       }
 
       // بررسی اینکه آیا کاربری با این شماره تلفن وجود دارد (ممکن است شماره واتس‌اپ آنها ست نشده باشد)
@@ -361,7 +363,7 @@ class WhatsAppMessageService {
           isWhatsappRegistered: true 
         });
         console.log(`✅ شماره واتس‌اپ برای کاربر موجود ${userWithPhone.username} به‌روزرسانی شد`);
-        return;
+        return false; // ثبت‌نام کامل شده - AI می‌تواند پاسخ دهد
       }
 
       // یافتن کاربر سطح ۱ که این پیام را دریافت کرده
@@ -370,7 +372,7 @@ class WhatsAppMessageService {
       
       if (!fromUser) {
         console.error('❌ هیچ کاربر سطح ۱ یافت نشد - کاربر واتس‌اپ ایجاد نمی‌شود');
-        return;
+        return false;
       }
 
       // تلاش برای استخراج نام و نام خانوادگی از پیام
@@ -380,7 +382,7 @@ class WhatsAppMessageService {
         // پیام شامل نام و نام خانوادگی نیست - درخواست کن
         console.log(`📝 درخواست نام و نام خانوادگی از ${whatsappNumber}`);
         await this.sendNameRequestMessage(whatsappNumber, fromUser);
-        return;
+        return true; // کاربر در حال ثبت‌نام است - AI نباید پاسخ دهد
       }
 
       // پیام شامل نام و نام خانوادگی است - ثبت نام کن
@@ -431,8 +433,11 @@ class WhatsAppMessageService {
       // ارسال پیام خوشامدگویی با نام واقعی
       await this.sendWelcomeMessage(whatsappNumber, parsedName.firstName, fromUser);
       
+      return false; // ثبت‌نام کامل شده - از الان AI می‌تواند پاسخ دهد
+      
     } catch (error) {
       console.error("❌ خطا در ثبت نام خودکار کاربر واتس‌اپ:", error);
+      return false; // در صورت خطا، AI می‌تواند پاسخ دهد
     }
   }
 

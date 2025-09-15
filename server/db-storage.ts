@@ -597,8 +597,13 @@ export class DbStorage implements IStorage {
 
   async getUsersVisibleToUser(userId: string, userRole: string): Promise<User[]> {
     if (userRole === 'admin') {
-      // Admin can see all users
-      return await db.select().from(users);
+      // Admin can see only admin and user_level_1 users, NOT user_level_2
+      return await db.select().from(users).where(
+        or(
+          eq(users.role, 'admin'),
+          eq(users.role, 'user_level_1')
+        )
+      );
     } else if (userRole === 'user_level_1') {
       // Level 1 users can see their sub-users (level 2)
       return await db.select().from(users).where(eq(users.parentUserId, userId));

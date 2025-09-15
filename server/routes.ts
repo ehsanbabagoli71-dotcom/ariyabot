@@ -281,9 +281,10 @@ export async function registerRoutes(app: Express): Promise<Server> {
   });
 
   // User management routes (Admin only)
-  app.get("/api/users", authenticateToken, requireAdmin, async (req, res) => {
+  app.get("/api/users", authenticateToken, async (req: AuthRequest, res) => {
     try {
-      const users = await storage.getAllUsers();
+      // Get users visible to current user based on their role
+      const users = await storage.getUsersVisibleToUser(req.user!.id, req.user!.role);
       
       // Get subscription data for each user
       const usersWithSubscriptions = await Promise.all(
