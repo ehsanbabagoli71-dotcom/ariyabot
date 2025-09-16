@@ -1,4 +1,5 @@
 import { useState, useEffect } from "react";
+import { DashboardLayout } from "@/components/dashboard-layout";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
 import { Label } from "@/components/ui/label";
@@ -16,7 +17,7 @@ export default function WelcomeMessage() {
   const [welcomeMessage, setWelcomeMessage] = useState("");
 
   // بارگذاری پیام خوش آمدگویی فعلی با react-query
-  const { data, isLoading } = useQuery({
+  const { data, isLoading } = useQuery<{ message: string }>({
     queryKey: ["/api/welcome-message"],
     enabled: !!user
   });
@@ -31,10 +32,16 @@ export default function WelcomeMessage() {
   // mutation برای ذخیره پیام
   const saveMutation = useMutation({
     mutationFn: async (message: string) => {
-      return await apiRequest("/api/welcome-message", {
+      const response = await fetch("/api/welcome-message", {
         method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          "Authorization": `Bearer ${localStorage.getItem("token")}`
+        },
         body: JSON.stringify({ message })
       });
+      if (!response.ok) throw new Error("خطا در ذخیره پیام");
+      return response.json();
     },
     onSuccess: () => {
       toast({
@@ -70,12 +77,7 @@ export default function WelcomeMessage() {
   };
 
   return (
-    <div className="container mx-auto p-6">
-      <div className="flex items-center gap-3 mb-6">
-        <MessageCircle className="w-6 h-6 text-primary" />
-        <h1 className="text-2xl font-bold">پیام خوش آمدگویی واتس‌اپ</h1>
-      </div>
-
+    <DashboardLayout title="پیام خوش آمدگویی واتس‌اپ">
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
         {/* فرم ویرایش */}
         <Card>
@@ -157,6 +159,6 @@ export default function WelcomeMessage() {
           </CardContent>
         </Card>
       </div>
-    </div>
+    </DashboardLayout>
   );
 }

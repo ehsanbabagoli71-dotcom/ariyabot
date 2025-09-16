@@ -65,7 +65,7 @@ export function Sidebar() {
 
   const settingsItems = [
     { path: "/ai-token", label: "توکن هوش مصنوعی", icon: Bot, adminOnly: true },
-    { path: "/welcome-message", label: "پیام خوش آمدگویی", icon: MessageCircle, adminOnly: false },
+    { path: "/admin/welcome-message", label: "پیام خوش آمدگویی", icon: MessageCircle, adminOnly: false },
   ];
 
   return (

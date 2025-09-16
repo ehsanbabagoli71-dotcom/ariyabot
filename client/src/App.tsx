@@ -124,7 +124,7 @@ function Router() {
       <Route path="/subscriptions" component={() => <AdminRoute component={Subscriptions} />} />
       <Route path="/categories" component={() => <AdminOrLevel1Route component={Categories} />} />
       <Route path="/ai-token" component={() => <AdminRoute component={AITokenSettings} />} />
-      <Route path="/welcome-message" component={() => <AdminOrLevel1Route component={WelcomeMessage} />} />
+      <Route path="/admin/welcome-message" component={() => <AdminOrLevel1Route component={WelcomeMessage} />} />
       <Route path="/whatsapp-settings" component={() => <AdminOrLevel1Route component={WhatsappSettings} />} />
       <Route path="/send-message" component={() => <AdminOrLevel1Route component={SendMessage} />} />
       <Route path="/reports" component={() => <AdminOrLevel1Route component={Reports} />} />
