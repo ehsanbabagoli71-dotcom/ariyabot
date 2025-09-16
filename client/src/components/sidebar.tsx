@@ -21,7 +21,8 @@ import {
   BarChart3,
   Bot,
   Home,
-  FolderTree
+  FolderTree,
+  MessageCircle
 } from "lucide-react";
 import { useAuth } from "@/hooks/use-auth";
 
@@ -63,7 +64,8 @@ export function Sidebar() {
   ];
 
   const settingsItems = [
-    { path: "/ai-token", label: "توکن هوش مصنوعی", icon: Bot },
+    { path: "/ai-token", label: "توکن هوش مصنوعی", icon: Bot, adminOnly: true },
+    { path: "/welcome-message", label: "پیام خوش آمدگویی", icon: MessageCircle, adminOnly: false },
   ];
 
   return (
@@ -201,8 +203,8 @@ export function Sidebar() {
             </Collapsible>
           </li>
           
-          {/* Settings Section - Admin Only */}
-          {user?.role === "admin" && (
+          {/* Settings Section - Admin and Level 1 */}
+          {(user?.role === "admin" || user?.role === "user_level_1") && (
             <li>
               <Collapsible open={settingsOpen} onOpenChange={setSettingsOpen}>
                 <CollapsibleTrigger asChild>
@@ -221,20 +223,22 @@ export function Sidebar() {
                 </CollapsibleTrigger>
                 <CollapsibleContent className="mr-6 space-y-1">
                   {settingsItems.map((item) => (
-                    <Link key={item.path} href={item.path}>
-                      <Button
-                        variant={isActive(item.path) ? "default" : "ghost"}
-                        size="sm"
-                        className={cn(
-                          "w-full justify-start",
-                          isActive(item.path) && "bg-primary text-primary-foreground"
-                        )}
-                        data-testid={`link-${item.path.substring(1)}`}
-                      >
-                        <item.icon className="w-4 h-4 ml-2" />
-                        {item.label}
-                      </Button>
-                    </Link>
+                    (!item.adminOnly || user?.role === "admin") && (
+                      <Link key={item.path} href={item.path}>
+                        <Button
+                          variant={isActive(item.path) ? "default" : "ghost"}
+                          size="sm"
+                          className={cn(
+                            "w-full justify-start",
+                            isActive(item.path) && "bg-primary text-primary-foreground"
+                          )}
+                          data-testid={`link-${item.path.substring(1)}`}
+                        >
+                          <item.icon className="w-4 h-4 ml-2" />
+                          {item.label}
+                        </Button>
+                      </Link>
+                    )
                   ))}
                 </CollapsibleContent>
               </Collapsible>

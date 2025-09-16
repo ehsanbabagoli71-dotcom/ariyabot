@@ -1470,6 +1470,33 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
+  // Welcome message routes
+  app.get("/api/welcome-message", authenticateToken, requireAdminOrLevel1, async (req: AuthRequest, res) => {
+    try {
+      const user = req.user!;
+      res.json({ message: user.welcomeMessage || "" });
+    } catch (error) {
+      res.status(500).json({ message: "خطا در دریافت پیام خوش آمدگویی" });
+    }
+  });
+
+  app.post("/api/welcome-message", authenticateToken, requireAdminOrLevel1, async (req: AuthRequest, res) => {
+    try {
+      const { message } = req.body;
+      
+      if (typeof message !== "string") {
+        return res.status(400).json({ message: "پیام باید متنی باشد" });
+      }
+
+      const user = req.user!;
+      await storage.updateUser(user.id, { welcomeMessage: message });
+      
+      res.json({ message: "پیام خوش آمدگویی با موفقیت ذخیره شد" });
+    } catch (error) {
+      res.status(500).json({ message: "خطا در ذخیره پیام خوش آمدگویی" });
+    }
+  });
+
   // Serve uploaded files
   app.use("/uploads", express.static(path.join(process.cwd(), "uploads")));
 

@@ -22,6 +22,7 @@ import AddProduct from "@/pages/user/add-product";
 import ProductList from "@/pages/user/product-list";
 import Reports from "@/pages/user/reports";
 import SubUsers from "@/pages/user/sub-users";
+import WelcomeMessage from "@/pages/admin/welcome-message";
 import NotFound from "@/pages/not-found";
 
 function ProtectedRoute({ component: Component }: { component: React.ComponentType }) {
@@ -123,6 +124,7 @@ function Router() {
       <Route path="/subscriptions" component={() => <AdminRoute component={Subscriptions} />} />
       <Route path="/categories" component={() => <AdminOrLevel1Route component={Categories} />} />
       <Route path="/ai-token" component={() => <AdminRoute component={AITokenSettings} />} />
+      <Route path="/welcome-message" component={() => <AdminOrLevel1Route component={WelcomeMessage} />} />
       <Route path="/whatsapp-settings" component={() => <AdminOrLevel1Route component={WhatsappSettings} />} />
       <Route path="/send-message" component={() => <AdminOrLevel1Route component={SendMessage} />} />
       <Route path="/reports" component={() => <AdminOrLevel1Route component={Reports} />} />

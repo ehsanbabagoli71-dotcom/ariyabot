@@ -462,13 +462,22 @@ class WhatsAppMessageService {
         whatsappToken = whatsappSettings.token;
       }
 
-      const welcomeMessage = `سلام ${firstName}! 🌟
+      // استفاده از پیام خوش آمدگویی سفارشی کاربر یا پیام پیش‌فرض
+      let welcomeMessage = fromUser?.welcomeMessage;
+      
+      if (!welcomeMessage || welcomeMessage.trim() === '') {
+        // پیام پیش‌فرض اگر کاربر پیام سفارشی نداشته باشد
+        welcomeMessage = `سلام ${firstName}! 🌟
 
 به سیستم ما خوش آمدید. شما با موفقیت ثبت نام شدید.
 
 🎁 اشتراک رایگان 7 روزه به حساب شما اضافه شد.
 
 برای کمک و راهنمایی، می‌توانید هر زمان پیام بدهید.`;
+      } else {
+        // جایگزینی نام در پیام سفارشی
+        welcomeMessage = welcomeMessage.replace('{firstName}', firstName);
+      }
       
       const sendUrl = `https://api.whatsiplus.com/sendMsg/${whatsappToken}?phonenumber=${whatsappNumber}&message=${encodeURIComponent(welcomeMessage)}`;
       

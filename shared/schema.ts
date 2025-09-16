@@ -18,6 +18,7 @@ export const users = pgTable("users", {
   parentUserId: varchar("parent_user_id"), // For hierarchical user management - will add reference later
   profilePicture: text("profile_picture"),
   isWhatsappRegistered: boolean("is_whatsapp_registered").notNull().default(false), // Track if user was auto-registered via WhatsApp
+  welcomeMessage: text("welcome_message"), // Custom welcome message for WhatsApp auto-registration
   createdAt: timestamp("created_at").defaultNow(),
 });
 
