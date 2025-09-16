@@ -1474,7 +1474,17 @@ export async function registerRoutes(app: Express): Promise<Server> {
   app.get("/api/welcome-message", authenticateToken, requireAdminOrLevel1, async (req: AuthRequest, res) => {
     try {
       const user = req.user!;
-      res.json({ message: user.welcomeMessage || "" });
+      
+      // پیام پیش‌فرض اگر کاربر پیام سفارشی نداشته باشد
+      const defaultMessage = `سلام {firstName}! 🌟
+
+به سیستم ما خوش آمدید. شما با موفقیت ثبت نام شدید.
+
+🎁 اشتراک رایگان 7 روزه به حساب شما اضافه شد.
+
+برای کمک و راهنمایی، می‌توانید هر زمان پیام بدهید.`;
+
+      res.json({ message: user.welcomeMessage || defaultMessage });
     } catch (error) {
       res.status(500).json({ message: "خطا در دریافت پیام خوش آمدگویی" });
     }
