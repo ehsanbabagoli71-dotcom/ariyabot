@@ -60,12 +60,12 @@ export function Sidebar() {
   const whatsappItems = [
     { path: "/whatsapp-settings", label: "تنظیمات واتس‌اپ", icon: Settings, adminOnly: false },
     { path: "/send-message", label: "ارسال پیام", icon: Send, adminOnly: false },
+    { path: "/admin/welcome-message", label: "پیام خوش آمدگویی", icon: MessageCircle, adminOnly: false },
     { path: "/reports", label: "گزارش‌ها", icon: BarChart3, adminOnly: false },
   ];
 
   const settingsItems = [
     { path: "/ai-token", label: "توکن هوش مصنوعی", icon: Bot, adminOnly: true },
-    { path: "/admin/welcome-message", label: "پیام خوش آمدگویی", icon: MessageCircle, adminOnly: false },
   ];
 
   return (

@@ -28,18 +28,44 @@ export class GeminiService {
     await this.initialize();
   }
 
-  async generateResponse(message: string): Promise<string> {
+  async generateResponse(message: string, userId?: string): Promise<string> {
     if (!this.model) {
       throw new Error("Gemini AI فعال نیست. لطفاً توکن API را تنظیم کنید.");
     }
 
     try {
+      // دریافت نام هوش مصنوعی از تنظیمات
+      let aiName = "من هوش مصنوعی هستم"; // پیش‌فرض
+      
+      try {
+        if (userId) {
+          const user = await storage.getUser(userId);
+          // اگر کاربر سطح 1 است، از تنظیمات شخصی استفاده کن (در آینده)
+          // در حال حاضر از تنظیمات عمومی استفاده می‌کنیم
+          if (user?.role === 'admin') {
+            const whatsappSettings = await storage.getWhatsappSettings();
+            if (whatsappSettings?.aiName) {
+              aiName = whatsappSettings.aiName;
+            }
+          }
+        } else {
+          // اگر userId نداریم، از تنظیمات عمومی استفاده کن
+          const whatsappSettings = await storage.getWhatsappSettings();
+          if (whatsappSettings?.aiName) {
+            aiName = whatsappSettings.aiName;
+          }
+        }
+      } catch (settingsError) {
+        console.error("خطا در دریافت نام هوش مصنوعی:", settingsError);
+        // ادامه با نام پیش‌فرض
+      }
+      
       // اضافه کردن context فارسی برای پاسخ‌های بهتر
-      const prompt = `شما یک دستیار هوشمند هستید که به زبان فارسی پاسخ می‌دهید. لطفاً به این پیام پاسخ دهید:
+      const prompt = `${aiName} و به زبان فارسی پاسخ می‌دهم. لطفاً به این پیام پاسخ دهید:
 
 ${message}
 
-پاسخ شما باید:
+پاسخ من باید:
 - به زبان فارسی باشد
 - حداکثر 20 کلمه باشد
 - مؤدبانه و مستقیم باشد

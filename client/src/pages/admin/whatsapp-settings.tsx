@@ -34,6 +34,7 @@ export default function WhatsappSettings() {
     token: "",
     isEnabled: true,
     notifications: [] as string[],
+    aiName: "من هوش مصنوعی هستم",
   });
   const [showToken, setShowToken] = useState(false);
   const [isPersonal, setIsPersonal] = useState(false);
@@ -54,6 +55,7 @@ export default function WhatsappSettings() {
     token: string;
     isEnabled: boolean;
     notifications: string[];
+    aiName: string;
     isPersonal: boolean;
   }>({
     queryKey: ["/api/whatsapp-settings"],
@@ -96,6 +98,7 @@ export default function WhatsappSettings() {
         token: settings.token || "",
         isEnabled: settings.isEnabled,
         notifications: settings.notifications || [],
+        aiName: settings.aiName || "من هوش مصنوعی هستم",
       });
       setIsPersonal(!!settings.isPersonal);
     }
@@ -233,6 +236,25 @@ export default function WhatsappSettings() {
                 </div>
                 <p className="text-xs text-muted-foreground">
                   توکن از پنل فیس‌بوک دریافت کنید
+                </p>
+              </div>
+
+              {/* AI Name */}
+              <div className="space-y-2">
+                <Label htmlFor="aiName" className="text-sm font-medium flex items-center space-x-1 space-x-reverse">
+                  <MessageCircle className="w-3 h-3" />
+                  <span>نام هوش مصنوعی</span>
+                </Label>
+                <Input
+                  id="aiName"
+                  type="text"
+                  value={formData.aiName}
+                  onChange={(e) => setFormData({ ...formData, aiName: e.target.value })}
+                  placeholder="من هوش مصنوعی هستم"
+                  data-testid="input-ai-name"
+                />
+                <p className="text-xs text-muted-foreground">
+                  وقتی کاربر نام شما را بپرسد، این نام را بیان خواهید کرد
                 </p>
               </div>
 

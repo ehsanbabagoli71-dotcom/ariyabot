@@ -1068,6 +1068,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
           token: user.whatsappToken || '',
           isEnabled: !!user.whatsappToken,
           notifications: [],
+          aiName: "من هوش مصنوعی هستم",
           isPersonal: true
         });
       } else {
@@ -1075,8 +1076,9 @@ export async function registerRoutes(app: Express): Promise<Server> {
         const settings = await storage.getWhatsappSettings();
         res.json({
           ...settings,
+          aiName: settings?.aiName || "من هوش مصنوعی هستم",
           isPersonal: false
-        } || {});
+        });
       }
     } catch (error) {
       res.status(500).json({ message: "خطا در دریافت تنظیمات واتس اپ" });
@@ -1102,6 +1104,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
           token: updatedUser.whatsappToken || '',
           isEnabled: !!updatedUser.whatsappToken,
           notifications: [],
+          aiName: "من هوش مصنوعی هستم",
           isPersonal: true
         });
       } else {

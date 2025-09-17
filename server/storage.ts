@@ -447,6 +447,7 @@ export class MemStorage implements IStorage {
       token: settings.token || null,
       isEnabled: settings.isEnabled || false,
       notifications: settings.notifications || null,
+      aiName: settings.aiName || "من هوش مصنوعی هستم",
       updatedAt: new Date(),
     };
     this.whatsappSettings = whatsappSettings;

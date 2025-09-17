@@ -536,7 +536,7 @@ class WhatsAppMessageService {
       }
 
       // تولید پاسخ با Gemini AI
-      const aiResponse = await geminiService.generateResponse(incomingMessage);
+      const aiResponse = await geminiService.generateResponse(incomingMessage, userId);
 
       // محدود کردن طول پاسخ برای جلوگیری از خطای 414
       const maxLength = 200; // حداکثر 200 کاراکتر
