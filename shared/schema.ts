@@ -71,6 +71,7 @@ export const whatsappSettings = pgTable("whatsapp_settings", {
   token: text("token"),
   isEnabled: boolean("is_enabled").notNull().default(true),
   notifications: text("notifications").array().default([]),
+  aiName: text("ai_name").notNull().default("من هوش مصنوعی هستم"),
   updatedAt: timestamp("updated_at").defaultNow(),
 });
 
