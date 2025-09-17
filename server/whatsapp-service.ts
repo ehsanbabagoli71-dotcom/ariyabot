@@ -349,7 +349,10 @@ class WhatsAppMessageService {
       const existingUser = await storage.getUserByWhatsappNumber(whatsappNumber);
       if (existingUser) {
         // کاربر از قبل ثبت نام کرده است - AI می‌تواند پاسخ دهد
+        console.log(`👤 کاربر با شماره ${whatsappNumber} از قبل وجود دارد: ${existingUser.username}`);
         return false;
+      } else {
+        console.log(`🆕 کاربر با شماره ${whatsappNumber} جدید است - بررسی ثبت نام...`);
       }
 
       // بررسی اینکه آیا کاربری با این شماره تلفن وجود دارد (ممکن است شماره واتس‌اپ آنها ست نشده باشد)

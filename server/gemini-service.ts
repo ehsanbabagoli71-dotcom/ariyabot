@@ -38,26 +38,50 @@ export class GeminiService {
       let aiName = "من هوش مصنوعی هستم"; // پیش‌فرض
       
       try {
-        if (userId) {
-          const user = await storage.getUser(userId);
-          // اگر کاربر سطح 1 است، از تنظیمات شخصی استفاده کن (در آینده)
-          // در حال حاضر از تنظیمات عمومی استفاده می‌کنیم
-          if (user?.role === 'admin') {
-            const whatsappSettings = await storage.getWhatsappSettings();
-            if (whatsappSettings?.aiName) {
-              aiName = whatsappSettings.aiName;
-            }
-          }
-        } else {
-          // اگر userId نداریم، از تنظیمات عمومی استفاده کن
-          const whatsappSettings = await storage.getWhatsappSettings();
-          if (whatsappSettings?.aiName) {
-            aiName = whatsappSettings.aiName;
-          }
+        // همیشه از تنظیمات واتس‌اپ برای دریافت نام استفاده کن (برای همه کاربران)
+        const whatsappSettings = await storage.getWhatsappSettings();
+        if (whatsappSettings?.aiName) {
+          aiName = whatsappSettings.aiName;
         }
       } catch (settingsError) {
         console.error("خطا در دریافت نام هوش مصنوعی:", settingsError);
         // ادامه با نام پیش‌فرض
+      }
+
+      // normalize کردن متن برای تشخیص بهتر سوالات فارسی
+      const normalizeText = (text: string): string => {
+        return text
+          .normalize('NFKC') // Unicode normalization
+          .replace(/\u200C|\u200F|\u200E/g, '') // حذف ZWNJ و سایر کاراکترهای مخفی
+          .replace(/[\u064A]/g, '\u06CC') // تبدیل ي عربی به ی فارسی
+          .replace(/[\u0643]/g, '\u06A9') // تبدیل ك عربی به ک فارسی
+          .replace(/[\u0610-\u061A\u064B-\u065F\u0670\u06D6-\u06DC\u06DF-\u06E4\u06E7\u06E8\u06EA-\u06ED]/g, '') // حذف اعراب
+          .replace(/[؟?!.،,]/g, ' ') // تبدیل علائم نگارشی به فاصله
+          .replace(/\s+/g, ' ') // کاهش فاصله‌های چندگانه
+          .trim()
+          .toLowerCase();
+      };
+
+      const normalizedMessage = normalizeText(message);
+      
+      // الگوهای مختلف سوالات نام (فارسی و انگلیسی)
+      const nameQuestionPatterns = [
+        /(اسم(ت| شما)?\s*(چیه|چیست|چی\s*هست))/,
+        /(نام(ت| شما)?\s*(چیه|چیست))/,
+        /(تو\s*کی(ی|\s*هستی)?)/,
+        /(چه\s*اسمی\s*داری)/,
+        /(خودت\s*رو\s*معرفی\s*کن)/,
+        /(who\s*are\s*you)/,
+        /(what'?s\s*your\s*name)/
+      ];
+      
+      const isNameQuestion = nameQuestionPatterns.some(pattern => 
+        pattern.test(normalizedMessage)
+      );
+
+      // اگر سوال در مورد نام بود، مستقیماً نام را برگردان
+      if (isNameQuestion) {
+        return aiName;
       }
       
       // اضافه کردن context فارسی برای پاسخ‌های بهتر
