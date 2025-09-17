@@ -393,16 +393,13 @@ class WhatsAppMessageService {
       
       // تولید نام کاربری یکتا بر اساس شماره تلفن
       const username = `whatsapp_${whatsappNumber.replace('+', '').slice(-8)}`;
-      
-      // تولید ایمیل موقت
-      const tempEmail = `${username}@whatsapp.temp`;
 
-      // ایجاد کاربر جدید با نام و نام خانوادگی دریافت شده
+      // ایجاد کاربر جدید با نام و نام خانوادگی دریافت شده (بدون ایمیل)
       const newUser = await storage.createUser({
         username: username,
         firstName: parsedName.firstName,
         lastName: parsedName.lastName,
-        email: tempEmail,
+        email: null, // ایمیل برای کاربران واتس‌اپ اختیاری است
         phone: whatsappNumber,
         whatsappNumber: whatsappNumber,
         password: null, // کاربران واتس‌اپ بدون رمز عبور

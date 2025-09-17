@@ -10,7 +10,7 @@ import { Label } from "@/components/ui/label";
 import { Plus, Search, Edit, Trash2, Users } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { createAuthenticatedRequest } from "@/lib/auth";
-import { insertUserSchema } from "@shared/schema";
+import { insertUserSchema, insertSubUserSchema } from "@shared/schema";
 import type { User as UserType } from "@shared/schema";
 import { z } from "zod";
 
@@ -25,7 +25,7 @@ interface UserWithSubscription extends UserType {
 }
 
 // Form schema for creating sub-users (level 2)
-const createSubUserSchema = insertUserSchema.extend({
+const createSubUserSchema = insertSubUserSchema.extend({
   password: z.string().min(6, "رمز عبور باید حداقل ۶ کاراکتر باشد"),
 });
 
@@ -38,7 +38,6 @@ export default function SubUserManagement() {
     username: "",
     firstName: "",
     lastName: "",
-    email: "",
     phone: "",
     password: "",
   });
@@ -73,7 +72,6 @@ export default function SubUserManagement() {
         username: "",
         firstName: "",
         lastName: "",
-        email: "",
         phone: "",
         password: "",
       });
@@ -151,7 +149,6 @@ export default function SubUserManagement() {
   const filteredSubUsers = subUsers.filter(user => {
     const matchesSearch = user.firstName.toLowerCase().includes(search.toLowerCase()) ||
                          user.lastName.toLowerCase().includes(search.toLowerCase()) ||
-                         user.email.toLowerCase().includes(search.toLowerCase()) ||
                          (user.username && user.username.toLowerCase().includes(search.toLowerCase()));
     return matchesSearch;
   });
@@ -184,7 +181,6 @@ export default function SubUserManagement() {
       data: {
         firstName: editingUser.firstName,
         lastName: editingUser.lastName,
-        email: editingUser.email,
         phone: editingUser.phone,
       },
     });
@@ -249,17 +245,6 @@ export default function SubUserManagement() {
                   />
                 </div>
                 <div>
-                  <Label htmlFor="email">ایمیل</Label>
-                  <Input
-                    id="email"
-                    data-testid="input-create-email"
-                    type="email"
-                    value={formData.email}
-                    onChange={(e) => setFormData({ ...formData, email: e.target.value })}
-                    placeholder="example@email.com"
-                  />
-                </div>
-                <div>
                   <Label htmlFor="phone">شماره تلفن</Label>
                   <Input
                     id="phone"
@@ -311,7 +296,6 @@ export default function SubUserManagement() {
             <TableHeader>
               <TableRow className="bg-muted/50">
                 <TableHead className="text-right">کاربر</TableHead>
-                <TableHead className="text-right">ایمیل</TableHead>
                 <TableHead className="text-right">تلفن</TableHead>
                 <TableHead className="text-right">اشتراک</TableHead>
                 <TableHead className="text-right">روزهای باقیمانده</TableHead>
@@ -321,13 +305,13 @@ export default function SubUserManagement() {
             <TableBody>
               {isLoading ? (
                 <TableRow>
-                  <TableCell colSpan={6} className="text-center py-8">
+                  <TableCell colSpan={5} className="text-center py-8">
                     در حال بارگذاری...
                   </TableCell>
                 </TableRow>
               ) : filteredSubUsers.length === 0 ? (
                 <TableRow>
-                  <TableCell colSpan={6} className="text-center py-8">
+                  <TableCell colSpan={5} className="text-center py-8">
                     {search ? "هیچ زیرمجموعه‌ای یافت نشد" : "هنوز زیرمجموعه‌ای ایجاد نشده است"}
                   </TableCell>
                 </TableRow>
@@ -345,7 +329,6 @@ export default function SubUserManagement() {
                         )}
                       </div>
                     </TableCell>
-                    <TableCell className="text-sm">{user.email}</TableCell>
                     <TableCell className="text-sm">{user.phone}</TableCell>
                     <TableCell>
                       {user.subscription ? (
@@ -424,15 +407,6 @@ export default function SubUserManagement() {
                     data-testid="input-edit-lastName"
                     value={editingUser.lastName}
                     onChange={(e) => setEditingUser({ ...editingUser, lastName: e.target.value })}
-                  />
-                </div>
-                <div>
-                  <Label htmlFor="edit-email">ایمیل</Label>
-                  <Input
-                    id="edit-email"
-                    data-testid="input-edit-email"
-                    value={editingUser.email}
-                    onChange={(e) => setEditingUser({ ...editingUser, email: e.target.value })}
                   />
                 </div>
                 <div>

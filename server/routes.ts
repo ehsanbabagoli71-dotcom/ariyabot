@@ -6,7 +6,7 @@ import jwt from "jsonwebtoken";
 import multer from "multer";
 import path from "path";
 import { fileURLToPath } from "url";
-import { insertUserSchema, insertTicketSchema, insertSubscriptionSchema, insertProductSchema, insertWhatsappSettingsSchema, insertSentMessageSchema, insertReceivedMessageSchema, insertAiTokenSettingsSchema, insertUserSubscriptionSchema, insertCategorySchema, updateCategoryOrderSchema, ticketReplySchema, type User } from "@shared/schema";
+import { insertUserSchema, insertSubUserSchema, insertTicketSchema, insertSubscriptionSchema, insertProductSchema, insertWhatsappSettingsSchema, insertSentMessageSchema, insertReceivedMessageSchema, insertAiTokenSettingsSchema, insertUserSubscriptionSchema, insertCategorySchema, updateCategoryOrderSchema, ticketReplySchema, type User } from "@shared/schema";
 import { z } from "zod";
 
 const __filename = fileURLToPath(import.meta.url);
@@ -180,10 +180,12 @@ export async function registerRoutes(app: Express): Promise<Server> {
       
       const validatedData = insertUserSchema.parse(userData);
       
-      // Check if user already exists
-      const existingUser = await storage.getUserByEmail(validatedData.email);
-      if (existingUser) {
-        return res.status(400).json({ message: "کاربری با این ایمیل قبلاً ثبت نام کرده است" });
+      // Check if user already exists (if email is provided)
+      if (validatedData.email) {
+        const existingUser = await storage.getUserByEmail(validatedData.email);
+        if (existingUser) {
+          return res.status(400).json({ message: "کاربری با این ایمیل قبلاً ثبت نام کرده است" });
+        }
       }
 
       // Hash password
@@ -331,10 +333,12 @@ export async function registerRoutes(app: Express): Promise<Server> {
     try {
       const validatedData = insertUserSchema.parse(req.body);
       
-      // Check if user already exists
-      const existingEmailUser = await storage.getUserByEmail(validatedData.email);
-      if (existingEmailUser) {
-        return res.status(400).json({ message: "کاربری با این ایمیل قبلاً ثبت نام کرده است" });
+      // Check if user already exists (if email is provided)
+      if (validatedData.email) {
+        const existingEmailUser = await storage.getUserByEmail(validatedData.email);
+        if (existingEmailUser) {
+          return res.status(400).json({ message: "کاربری با این ایمیل قبلاً ثبت نام کرده است" });
+        }
       }
 
       const existingUsernameUser = await storage.getUserByUsername(validatedData.username!);
@@ -502,7 +506,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
         return res.status(403).json({ message: "فقط کاربران سطح ۱ می‌توانند زیرمجموعه ایجاد کنند" });
       }
 
-      const validatedData = insertUserSchema.parse(req.body);
+      const validatedData = insertSubUserSchema.parse(req.body);
       
       // Force role to be user_level_2 and set parent
       const subUserData = {
@@ -511,10 +515,12 @@ export async function registerRoutes(app: Express): Promise<Server> {
         parentUserId: req.user.id,
       };
       
-      // Check if user already exists
-      const existingEmailUser = await storage.getUserByEmail(subUserData.email);
-      if (existingEmailUser) {
-        return res.status(400).json({ message: "کاربری با این ایمیل قبلاً ثبت نام کرده است" });
+      // Check if user already exists (only if email is provided)
+      if (subUserData.email) {
+        const existingEmailUser = await storage.getUserByEmail(subUserData.email);
+        if (existingEmailUser) {
+          return res.status(400).json({ message: "کاربری با این ایمیل قبلاً ثبت نام کرده است" });
+        }
       }
 
       const existingUsernameUser = await storage.getUserByUsername(subUserData.username!);
@@ -525,10 +531,14 @@ export async function registerRoutes(app: Express): Promise<Server> {
       // Hash password
       const hashedPassword = await bcrypt.hash(subUserData.password!, 10);
       
-      const subUser = await storage.createUser({
+      // Ensure email is set to null if not provided
+      const finalSubUserData = {
         ...subUserData,
+        email: subUserData.email || `temp_${Date.now()}@level2.local`,
         password: hashedPassword,
-      });
+      };
+      
+      const subUser = await storage.createUser(finalSubUserData);
 
       // Create 7-day free trial subscription for new sub-user
       try {
