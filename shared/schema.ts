@@ -8,7 +8,7 @@ export const users = pgTable("users", {
   username: text("username").notNull().unique(),
   firstName: text("first_name").notNull(),
   lastName: text("last_name").notNull(),
-  email: text("email").notNull().unique(),
+  email: text("email").unique(),
   phone: text("phone").notNull(),
   whatsappNumber: text("whatsapp_number"), // WhatsApp number for automatic registration
   whatsappToken: text("whatsapp_token"), // Individual WhatsApp token for level 1 users
@@ -136,6 +136,15 @@ export const categories = pgTable("categories", {
 export const insertUserSchema = createInsertSchema(users).omit({
   id: true,
   createdAt: true,
+});
+
+// Schema for level 2 users where email is optional
+export const insertSubUserSchema = createInsertSchema(users).omit({
+  id: true,
+  createdAt: true,
+  email: true, // Remove email from required fields
+}).extend({
+  email: z.string().email("ایمیل معتبر وارد کنید").optional(), // Make email optional
 });
 
 export const insertTicketSchema = createInsertSchema(tickets).omit({
