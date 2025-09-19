@@ -6,11 +6,15 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Input } from "@/components/ui/input";
-import { ShoppingCart, Plus, Minus, Trash2, Package } from "lucide-react";
+import { Textarea } from "@/components/ui/textarea";
+import { Label } from "@/components/ui/label";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
+import { ShoppingCart, Plus, Minus, Trash2, Package, MapPin } from "lucide-react";
 import { useAuth } from "@/hooks/use-auth";
 import { useToast } from "@/hooks/use-toast";
 import { apiRequest, queryClient } from "@/lib/queryClient";
-import type { CartItem, Product } from "@shared/schema";
+import type { CartItem, Product, Address } from "@shared/schema";
 
 // Extended cart item with product details
 interface CartItemWithProduct extends CartItem {
@@ -23,6 +27,17 @@ export default function Cart() {
   const { user } = useAuth();
   const { toast } = useToast();
   const [, setLocation] = useLocation();
+  const [selectedAddressId, setSelectedAddressId] = useState<string>("");
+  const [isAddressDialogOpen, setIsAddressDialogOpen] = useState(false);
+  const [newAddress, setNewAddress] = useState({
+    title: "",
+    fullName: "",
+    phoneNumber: "",
+    province: "",
+    city: "",
+    postalCode: "",
+    addressLine: ""
+  });
 
   // Get user's cart items
   const { data: cartItems = [], isLoading: cartLoading } = useQuery<CartItemWithProduct[]>({
@@ -30,9 +45,52 @@ export default function Cart() {
     enabled: !!user,
   });
 
+  // Get user's addresses
+  const { data: addresses = [] } = useQuery<Address[]>({
+    queryKey: ["/api/addresses"],
+    enabled: !!user,
+  });
+
   // Calculate total
   const totalAmount = cartItems.reduce((sum, item) => sum + parseFloat(item.totalPrice), 0);
   const totalItems = cartItems.reduce((sum, item) => sum + item.quantity, 0);
+
+  // Add new address mutation
+  const addAddressMutation = useMutation({
+    mutationFn: async (addressData: typeof newAddress) => {
+      const response = await apiRequest("POST", "/api/addresses", addressData);
+      if (!response.ok) {
+        const errorData = await response.json();
+        throw new Error(errorData.message || "خطا در ثبت آدرس");
+      }
+      return response.json();
+    },
+    onSuccess: (data) => {
+      queryClient.invalidateQueries({ queryKey: ["/api/addresses"] });
+      setSelectedAddressId(data.id);
+      setIsAddressDialogOpen(false);
+      setNewAddress({
+        title: "",
+        fullName: "",
+        phoneNumber: "",
+        province: "",
+        city: "",
+        postalCode: "",
+        addressLine: ""
+      });
+      toast({
+        title: "موفقیت",
+        description: "آدرس جدید با موفقیت اضافه شد",
+      });
+    },
+    onError: (error: Error) => {
+      toast({
+        title: "خطا",
+        description: error.message,
+        variant: "destructive",
+      });
+    },
+  });
 
   // Update cart item quantity
   const updateQuantityMutation = useMutation({
@@ -131,7 +189,12 @@ export default function Cart() {
   // Proceed to checkout mutation
   const proceedToCheckoutMutation = useMutation({
     mutationFn: async () => {
-      const response = await apiRequest("POST", "/api/orders");
+      if (!selectedAddressId) {
+        throw new Error("لطفاً آدرس تحویل را انتخاب کنید");
+      }
+      const response = await apiRequest("POST", "/api/orders", {
+        addressId: selectedAddressId
+      });
       if (!response.ok) {
         const errorData = await response.json();
         throw new Error(errorData.message || "خطا در ثبت سفارش");
@@ -160,6 +223,19 @@ export default function Cart() {
   const handleProceedToCheckout = () => {
     if (cartItems.length > 0) {
       proceedToCheckoutMutation.mutate();
+    }
+  };
+
+  const handleAddNewAddress = () => {
+    if (newAddress.title && newAddress.fullName && newAddress.phoneNumber && 
+        newAddress.province && newAddress.city && newAddress.postalCode && newAddress.addressLine) {
+      addAddressMutation.mutate(newAddress);
+    } else {
+      toast({
+        title: "خطا",
+        description: "لطفاً تمام فیلدها را پر کنید",
+        variant: "destructive",
+      });
     }
   };
 
@@ -314,6 +390,135 @@ export default function Cart() {
                 </Card>
               ))}
             </div>
+
+            {/* Address Selection */}
+            <Card>
+              <CardHeader>
+                <CardTitle className="flex items-center gap-2">
+                  <MapPin className="h-5 w-5" />
+                  آدرس تحویل
+                </CardTitle>
+              </CardHeader>
+              <CardContent className="space-y-4">
+                {addresses.length > 0 ? (
+                  <div className="space-y-3">
+                    <Label>انتخاب آدرس:</Label>
+                    <Select value={selectedAddressId} onValueChange={setSelectedAddressId}>
+                      <SelectTrigger data-testid="select-address">
+                        <SelectValue placeholder="آدرس تحویل را انتخاب کنید" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {addresses.map((address) => (
+                          <SelectItem key={address.id} value={address.id}>
+                            {address.title} - {address.city}, {address.province}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  </div>
+                ) : (
+                  <p className="text-muted-foreground text-sm">
+                    هیچ آدرسی ثبت نشده است. لطفاً آدرس جدید اضافه کنید.
+                  </p>
+                )}
+                
+                <Dialog open={isAddressDialogOpen} onOpenChange={setIsAddressDialogOpen}>
+                  <DialogTrigger asChild>
+                    <Button variant="outline" className="w-full" data-testid="button-add-address">
+                      <Plus className="h-4 w-4 ml-2" />
+                      اضافه کردن آدرس جدید
+                    </Button>
+                  </DialogTrigger>
+                  <DialogContent className="max-w-md">
+                    <DialogHeader>
+                      <DialogTitle>اضافه کردن آدرس جدید</DialogTitle>
+                    </DialogHeader>
+                    <div className="space-y-4">
+                      <div>
+                        <Label htmlFor="title">عنوان آدرس</Label>
+                        <Input
+                          id="title"
+                          placeholder="مثال: منزل، محل کار"
+                          value={newAddress.title}
+                          onChange={(e) => setNewAddress({...newAddress, title: e.target.value})}
+                          data-testid="input-address-title"
+                        />
+                      </div>
+                      <div>
+                        <Label htmlFor="fullName">نام و نام خانوادگی</Label>
+                        <Input
+                          id="fullName"
+                          placeholder="نام کامل گیرنده"
+                          value={newAddress.fullName}
+                          onChange={(e) => setNewAddress({...newAddress, fullName: e.target.value})}
+                          data-testid="input-full-name"
+                        />
+                      </div>
+                      <div>
+                        <Label htmlFor="phoneNumber">شماره تماس</Label>
+                        <Input
+                          id="phoneNumber"
+                          placeholder="09123456789"
+                          value={newAddress.phoneNumber}
+                          onChange={(e) => setNewAddress({...newAddress, phoneNumber: e.target.value})}
+                          data-testid="input-phone-number"
+                        />
+                      </div>
+                      <div className="grid grid-cols-2 gap-2">
+                        <div>
+                          <Label htmlFor="province">استان</Label>
+                          <Input
+                            id="province"
+                            placeholder="استان"
+                            value={newAddress.province}
+                            onChange={(e) => setNewAddress({...newAddress, province: e.target.value})}
+                            data-testid="input-province"
+                          />
+                        </div>
+                        <div>
+                          <Label htmlFor="city">شهر</Label>
+                          <Input
+                            id="city"
+                            placeholder="شهر"
+                            value={newAddress.city}
+                            onChange={(e) => setNewAddress({...newAddress, city: e.target.value})}
+                            data-testid="input-city"
+                          />
+                        </div>
+                      </div>
+                      <div>
+                        <Label htmlFor="postalCode">کد پستی</Label>
+                        <Input
+                          id="postalCode"
+                          placeholder="1234567890"
+                          value={newAddress.postalCode}
+                          onChange={(e) => setNewAddress({...newAddress, postalCode: e.target.value})}
+                          data-testid="input-postal-code"
+                        />
+                      </div>
+                      <div>
+                        <Label htmlFor="addressLine">آدرس کامل</Label>
+                        <Textarea
+                          id="addressLine"
+                          placeholder="آدرس کامل..."
+                          value={newAddress.addressLine}
+                          onChange={(e) => setNewAddress({...newAddress, addressLine: e.target.value})}
+                          data-testid="textarea-address-line"
+                        />
+                      </div>
+                      <Button 
+                        onClick={handleAddNewAddress} 
+                        disabled={addAddressMutation.isPending}
+                        className="w-full"
+                        data-testid="button-save-address"
+                      >
+                        {addAddressMutation.isPending ? "در حال ذخیره..." : "ذخیره آدرس"}
+                      </Button>
+                    </div>
+                  </DialogContent>
+                </Dialog>
+              </CardContent>
+            </Card>
 
             {/* Cart Summary */}
             <div className="lg:col-span-1">

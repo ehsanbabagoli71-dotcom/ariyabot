@@ -66,15 +66,6 @@ export default function OrdersPage() {
   return (
     <div className="container mx-auto px-4 py-8">
       <div className="space-y-8">
-        {/* Header */}
-        <div className="text-center">
-          <h1 className="text-3xl font-bold text-gray-900 dark:text-gray-100 mb-2" data-testid="heading-orders">
-            سفارشات من
-          </h1>
-          <p className="text-gray-600 dark:text-gray-300">
-            مدیریت و پیگیری سفارشات شما
-          </p>
-        </div>
 
         {/* Orders List */}
         <div className="space-y-6">
@@ -125,17 +116,6 @@ export default function OrdersPage() {
                         >
                           {statusLabels[order.status as keyof typeof statusLabels]}
                         </Badge>
-                        {canPay && (
-                          <Button
-                            size="sm"
-                            onClick={() => handlePayment(order.id)}
-                            className="bg-green-600 hover:bg-green-700 text-white"
-                            data-testid={`button-pay-${order.id}`}
-                          >
-                            <CreditCard className="w-4 h-4 mr-2" />
-                            پرداخت
-                          </Button>
-                        )}
                       </div>
                     </div>
                   </CardHeader>
@@ -190,10 +170,10 @@ export default function OrdersPage() {
                             <Button
                               onClick={() => handlePayment(order.id)}
                               className="w-full bg-green-600 hover:bg-green-700"
-                              data-testid={`button-pay-full-${order.id}`}
+                              data-testid={`button-pay-${order.id}`}
                             >
                               <CreditCard className="w-4 h-4 mr-2" />
-                              پرداخت سفارش
+                              پرداخت
                             </Button>
                           )}
                           <Button

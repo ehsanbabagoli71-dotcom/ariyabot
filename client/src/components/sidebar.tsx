@@ -142,45 +142,6 @@ export function Sidebar() {
             </li>
           ))}
           
-          {/* Tickets Submenu */}
-          {user?.role !== "admin" && (
-            <li>
-              <Collapsible open={ticketsOpen} onOpenChange={setTicketsOpen}>
-                <CollapsibleTrigger asChild>
-                  <Button
-                    variant="ghost"
-                    className="w-full justify-start"
-                    data-testid="button-tickets-toggle"
-                  >
-                    <MessageSquare className="w-5 h-5 ml-2" />
-                    تیکت‌ها
-                    <ChevronDown className={cn(
-                      "w-4 h-4 mr-auto transition-transform",
-                      ticketsOpen && "rotate-180"
-                    )} />
-                  </Button>
-                </CollapsibleTrigger>
-                <CollapsibleContent className="mr-6 space-y-1">
-                  {ticketItems.map((item) => (
-                    <Link key={item.path} href={item.path}>
-                      <Button
-                        variant={isActive(item.path) ? "default" : "ghost"}
-                        size="sm"
-                        className={cn(
-                          "w-full justify-start",
-                          isActive(item.path) && "bg-primary text-primary-foreground"
-                        )}
-                        data-testid={`link-${item.path.substring(1)}`}
-                      >
-                        <item.icon className="w-4 h-4 ml-2" />
-                        {item.label}
-                      </Button>
-                    </Link>
-                  ))}
-                </CollapsibleContent>
-              </Collapsible>
-            </li>
-          )}
 
           {/* Shopping Cart - Only for user_level_2 */}
           {user?.role === "user_level_2" && (
@@ -201,48 +162,28 @@ export function Sidebar() {
             </li>
           )}
 
-          {/* User Level 2 Menu - Orders, Addresses, Financial */}
-          {user?.role === "user_level_2" && (
-            <li>
-              <Collapsible open={level2MenuOpen} onOpenChange={setLevel2MenuOpen}>
-                <CollapsibleTrigger asChild>
-                  <Button
-                    variant="ghost"
-                    className="w-full justify-start"
-                    data-testid="button-level2-menu-toggle"
-                  >
-                    <User className="w-5 h-5 ml-2" />
-                    خدمات من
-                    <ChevronDown className={cn(
-                      "w-4 h-4 mr-auto transition-transform",
-                      level2MenuOpen && "rotate-180"
-                    )} />
-                  </Button>
-                </CollapsibleTrigger>
-                <CollapsibleContent className="mr-6 space-y-1">
-                  {level2MenuItems.map((item) => (
-                    <Link key={item.path} href={item.path}>
-                      <Button
-                        variant={isActive(item.path) ? "default" : "ghost"}
-                        size="sm"
-                        className={cn(
-                          "w-full justify-start",
-                          isActive(item.path) && "bg-primary text-primary-foreground"
-                        )}
-                        data-testid={`link-${item.path.substring(1)}`}
-                      >
-                        <item.icon className="w-4 h-4 ml-2" />
-                        {item.label}
-                      </Button>
-                    </Link>
-                  ))}
-                </CollapsibleContent>
-              </Collapsible>
+          {/* Direct Menu Items for user_level_2 - Addresses, Orders, Financial */}
+          {user?.role === "user_level_2" && level2MenuItems.map((item) => (
+            <li key={item.path}>
+              <Link href={item.path}>
+                <Button
+                  variant={isActive(item.path) ? "default" : "ghost"}
+                  className={cn(
+                    "w-full justify-start",
+                    isActive(item.path) && "bg-primary text-primary-foreground"
+                  )}
+                  data-testid={`link-${item.path.substring(1)}`}
+                >
+                  <item.icon className="w-5 h-5 ml-2" />
+                  {item.label}
+                </Button>
+              </Link>
             </li>
-          )}
+          ))}
+
           
-          {/* Inventory Submenu - Hidden for admin */}
-          {user?.role !== "admin" && (
+          {/* Inventory Submenu - Hidden for admin and user_level_2 */}
+          {user?.role !== "admin" && user?.role !== "user_level_2" && (
             <li>
               <Collapsible open={inventoryOpen} onOpenChange={setInventoryOpen}>
                 <CollapsibleTrigger asChild>
@@ -424,6 +365,46 @@ export function Sidebar() {
             </li>
           )}
 
+
+          {/* Tickets Submenu - At the end of menu */}
+          {user?.role !== "admin" && (
+            <li>
+              <Collapsible open={ticketsOpen} onOpenChange={setTicketsOpen}>
+                <CollapsibleTrigger asChild>
+                  <Button
+                    variant="ghost"
+                    className="w-full justify-start"
+                    data-testid="button-tickets-toggle"
+                  >
+                    <MessageSquare className="w-5 h-5 ml-2" />
+                    تیکت‌ها
+                    <ChevronDown className={cn(
+                      "w-4 h-4 mr-auto transition-transform",
+                      ticketsOpen && "rotate-180"
+                    )} />
+                  </Button>
+                </CollapsibleTrigger>
+                <CollapsibleContent className="mr-6 space-y-1">
+                  {ticketItems.map((item) => (
+                    <Link key={item.path} href={item.path}>
+                      <Button
+                        variant={isActive(item.path) ? "default" : "ghost"}
+                        size="sm"
+                        className={cn(
+                          "w-full justify-start",
+                          isActive(item.path) && "bg-primary text-primary-foreground"
+                        )}
+                        data-testid={`link-${item.path.substring(1)}`}
+                      >
+                        <item.icon className="w-4 h-4 ml-2" />
+                        {item.label}
+                      </Button>
+                    </Link>
+                  ))}
+                </CollapsibleContent>
+              </Collapsible>
+            </li>
+          )}
 
           {/* Logout - After User Profile */}
           {user?.role !== "admin" && (

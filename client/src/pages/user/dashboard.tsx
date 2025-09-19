@@ -1,4 +1,5 @@
 import { useQuery, useMutation } from "@tanstack/react-query";
+import { useState, useEffect, useRef, useMemo } from "react";
 import { DashboardLayout } from "@/components/dashboard-layout";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
@@ -18,6 +19,8 @@ interface UserSubscriptionWithDetails extends UserSubscription {
 
 export default function UserDashboard() {
   const { user } = useAuth();
+  const sliderRef = useRef<HTMLDivElement>(null);
+  const [currentSlide, setCurrentSlide] = useState(0);
 
   // Get user's subscription info
   const { data: userSubscription, isLoading: subscriptionLoading } = useQuery<UserSubscriptionWithDetails | null>({
@@ -144,15 +147,44 @@ export default function UserDashboard() {
   const totalSentMessages = sentMessages.length;
 
   // Categorize products for shopping view
-  const bestSellingProducts = availableProducts
-    .filter(product => product.quantity && product.quantity > 0) // Use quantity as proxy for sales
-    .sort((a, b) => (b.quantity || 0) - (a.quantity || 0))
-    .slice(0, 8);
+  const bestSellingProducts = useMemo(() => 
+    availableProducts
+      .filter(product => product.quantity && product.quantity > 0) // Use quantity as proxy for sales
+      .sort((a, b) => (b.quantity || 0) - (a.quantity || 0))
+      .slice(0, 8),
+    [availableProducts]
+  );
   const allProducts = availableProducts.slice(0, 16); // Show 16 total products
 
   const handleAddToCart = (productId: string) => {
     addToCartMutation.mutate({ productId, quantity: 1 });
   };
+
+  // Auto-scroll effect for best selling products
+  useEffect(() => {
+    if (user?.role === "user_level_2" && bestSellingProducts.length > 0) {
+      const slider = sliderRef.current;
+      if (!slider) return;
+
+      const interval = setInterval(() => {
+        const cardWidth = 280 + 16; // card width + gap
+        const maxScroll = slider.scrollWidth - slider.clientWidth;
+        const nextPosition = slider.scrollLeft + cardWidth;
+
+        if (nextPosition >= maxScroll) {
+          // Reset to beginning
+          slider.scrollTo({ left: 0, behavior: 'smooth' });
+          setCurrentSlide(0);
+        } else {
+          // Move to next slide
+          slider.scrollTo({ left: nextPosition, behavior: 'smooth' });
+          setCurrentSlide(Math.floor(nextPosition / cardWidth));
+        }
+      }, 3000); // Auto slide every 3 seconds
+
+      return () => clearInterval(interval);
+    }
+  }, [user?.role, bestSellingProducts]);
 
   // Shopping view for user_level_2
   if (user?.role === "user_level_2") {
@@ -166,7 +198,11 @@ export default function UserDashboard() {
               <h2 className="text-xl font-bold">پرفروش‌ترین محصولات</h2>
             </div>
             <div className="relative">
-              <div className="flex overflow-x-auto pb-4 gap-4 scrollbar-hide" style={{ scrollbarWidth: 'none', msOverflowStyle: 'none' }}>
+              <div 
+                ref={sliderRef}
+                className="flex overflow-x-auto pb-4 gap-4 scrollbar-hide" 
+                style={{ scrollbarWidth: 'none', msOverflowStyle: 'none' }}
+              >
                 {bestSellingProducts.map((product) => (
                   <Card key={product.id} className="group hover:shadow-lg transition-all min-w-[280px] flex-shrink-0">
                     <CardContent className="p-4">
