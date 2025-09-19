@@ -1,6 +1,6 @@
 import { useState } from "react";
 import { useQuery, useMutation } from "@tanstack/react-query";
-import { Link } from "wouter";
+import { Link, useLocation } from "wouter";
 import { DashboardLayout } from "@/components/dashboard-layout";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -22,6 +22,7 @@ interface CartItemWithProduct extends CartItem {
 export default function Cart() {
   const { user } = useAuth();
   const { toast } = useToast();
+  const [, setLocation] = useLocation();
 
   // Get user's cart items
   const { data: cartItems = [], isLoading: cartLoading } = useQuery<CartItemWithProduct[]>({
@@ -145,7 +146,7 @@ export default function Cart() {
         description: "سفارش شما با موفقیت ثبت شد و در لیست سفارشات شما قرار گرفت",
       });
       // Redirect to orders page
-      window.location.href = '/user/orders';
+      setLocation('/orders');
     },
     onError: (error: Error) => {
       toast({

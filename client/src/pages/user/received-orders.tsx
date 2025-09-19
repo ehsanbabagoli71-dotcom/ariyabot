@@ -60,11 +60,13 @@ export default function ReceivedOrdersPage() {
   // Update order status mutation
   const updateStatusMutation = useMutation({
     mutationFn: async ({ orderId, status }: { orderId: string; status: string }) => {
-      const response = await apiRequest(`/api/orders/${orderId}/status`, 'PUT', { status });
-      return response;
+      const response = await apiRequest('PUT', `/api/orders/${orderId}/status`, { status });
+      return response.json();
     },
     onSuccess: () => {
+      // Invalidate cache for both seller orders and customer orders
       queryClient.invalidateQueries({ queryKey: ['/api/orders/seller'] });
+      queryClient.invalidateQueries({ queryKey: ['/api/orders'] });
       setDialogOpen(false);
       setSelectedOrder(null);
       setNewStatus("");

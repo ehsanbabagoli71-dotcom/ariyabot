@@ -1,13 +1,12 @@
-import { useState } from "react";
 import { useQuery, useMutation } from "@tanstack/react-query";
 import { DashboardLayout } from "@/components/dashboard-layout";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import { Crown, Calendar, Clock, CheckCircle, AlertCircle, MessageSquare, Package, Send, User, Star, TrendingUp, Grid3X3, ShoppingCart, Plus } from "lucide-react";
+import { Crown, Clock, CheckCircle, AlertCircle, MessageSquare, Package, TrendingUp, Grid3X3, Plus } from "lucide-react";
 import { useAuth } from "@/hooks/use-auth";
 import { createAuthenticatedRequest } from "@/lib/auth";
-import { apiRequest, queryClient } from "@/lib/queryClient";
+import { queryClient } from "@/lib/queryClient";
 import { useToast } from "@/hooks/use-toast";
 import type { UserSubscription, Ticket, Product, SentMessage } from "@shared/schema";
 
@@ -23,7 +22,7 @@ export default function UserDashboard() {
   // Get user's subscription info
   const { data: userSubscription, isLoading: subscriptionLoading } = useQuery<UserSubscriptionWithDetails | null>({
     queryKey: ["/api/user-subscriptions/me"],
-    enabled: !!user,
+    enabled: !!user && user.role !== "user_level_2",
     queryFn: async () => {
       if (!user) return null;
       
@@ -50,7 +49,7 @@ export default function UserDashboard() {
   // Get user's tickets
   const { data: tickets = [], isLoading: ticketsLoading } = useQuery<Ticket[]>({
     queryKey: ["/api/tickets"],
-    enabled: !!user,
+    enabled: !!user && user.role !== "user_level_2",
     queryFn: async () => {
       const response = await createAuthenticatedRequest("/api/tickets");
       if (!response.ok) {
@@ -64,7 +63,7 @@ export default function UserDashboard() {
   // Get user's products
   const { data: products = [], isLoading: productsLoading } = useQuery<Product[]>({
     queryKey: ["/api/products"],
-    enabled: !!user,
+    enabled: !!user && user.role !== "user_level_2",
     queryFn: async () => {
       const response = await createAuthenticatedRequest("/api/products");
       if (!response.ok) {
@@ -105,20 +104,6 @@ export default function UserDashboard() {
     },
   });
 
-  // Get user's cart for level 2 users
-  const { data: cartItems = [], isLoading: cartLoading } = useQuery<any[]>({
-    queryKey: ["/api/cart"],
-    enabled: !!user && user.role === "user_level_2",
-    queryFn: async () => {
-      try {
-        const response = await createAuthenticatedRequest("/api/cart");
-        if (!response.ok) return [];
-        return response.json();
-      } catch {
-        return [];
-      }
-    },
-  });
 
   const { toast } = useToast();
 
@@ -157,10 +142,8 @@ export default function UserDashboard() {
   const openTickets = tickets.filter(ticket => ticket.status !== "closed").length;
   const activeProducts = products.filter(product => product.isActive).length;
   const totalSentMessages = sentMessages.length;
-  const cartItemsCount = cartItems.reduce((sum, item) => sum + item.quantity, 0);
 
   // Categorize products for shopping view
-  const hotProducts = availableProducts.slice(0, 8); // First 8 as hot
   const bestSellingProducts = availableProducts
     .filter(product => product.quantity && product.quantity > 0) // Use quantity as proxy for sales
     .sort((a, b) => (b.quantity || 0) - (a.quantity || 0))
@@ -176,125 +159,56 @@ export default function UserDashboard() {
     return (
       <DashboardLayout title="فروشگاه">
         <div className="space-y-6" data-testid="shopping-dashboard-content">
-          {/* Cart Summary */}
-          <Card className="bg-gradient-to-r from-green-50 to-blue-50 dark:from-green-950/30 dark:to-blue-950/30 border-green-200 dark:border-green-800">
-            <CardContent className="p-4">
-              <div className="flex items-center justify-between">
-                <div className="flex items-center gap-3">
-                  <ShoppingCart className="h-8 w-8 text-green-600" />
-                  <div>
-                    <h2 className="font-bold text-lg text-green-900 dark:text-green-300">سبد خرید شما</h2>
-                    <p className="text-sm text-green-700 dark:text-green-400">
-                      {cartItemsCount} محصول در سبد خرید
-                    </p>
-                  </div>
-                </div>
-                <Button 
-                  variant="default"
-                  onClick={() => window.location.href = '/cart'}
-                  className="bg-green-600 hover:bg-green-700"
-                  data-testid="button-view-cart"
-                >
-                  مشاهده سبد خرید
-                </Button>
-              </div>
-            </CardContent>
-          </Card>
-
-          {/* Hot Products */}
-          <div className="space-y-4">
-            <div className="flex items-center gap-2">
-              <Star className="h-6 w-6 text-red-500" />
-              <h2 className="text-xl font-bold">محصولات داغ</h2>
-            </div>
-            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
-              {hotProducts.map((product) => (
-                <Card key={product.id} className="group hover:shadow-lg transition-all">
-                  <CardContent className="p-4">
-                    <div className="space-y-3">
-                      {product.image && (
-                        <img 
-                          src={product.image} 
-                          alt={product.name}
-                          className="w-full h-32 object-cover rounded-lg"
-                        />
-                      )}
-                      <div>
-                        <h3 className="font-semibold text-sm line-clamp-2" data-testid={`text-product-name-${product.id}`}>
-                          {product.name}
-                        </h3>
-                        <p className="text-xs text-muted-foreground line-clamp-2 mt-1">
-                          {product.description}
-                        </p>
-                      </div>
-                      <div className="flex items-center justify-between">
-                        <Badge variant="secondary" className="text-xs">
-                          {parseFloat(product.priceAfterDiscount || product.priceBeforeDiscount).toLocaleString()} تومان
-                        </Badge>
-                        <Button
-                          size="sm"
-                          onClick={() => handleAddToCart(product.id)}
-                          disabled={addToCartMutation.isPending}
-                          data-testid={`button-add-to-cart-${product.id}`}
-                        >
-                          <Plus className="h-4 w-4" />
-                        </Button>
-                      </div>
-                    </div>
-                  </CardContent>
-                </Card>
-              ))}
-            </div>
-          </div>
-
-          {/* Best Selling Products */}
+          {/* Best Selling Products - Horizontal Slider */}
           <div className="space-y-4">
             <div className="flex items-center gap-2">
               <TrendingUp className="h-6 w-6 text-green-500" />
               <h2 className="text-xl font-bold">پرفروش‌ترین محصولات</h2>
             </div>
-            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
-              {bestSellingProducts.map((product) => (
-                <Card key={product.id} className="group hover:shadow-lg transition-all">
-                  <CardContent className="p-4">
-                    <div className="space-y-3">
-                      {product.image && (
-                        <img 
-                          src={product.image} 
-                          alt={product.name}
-                          className="w-full h-32 object-cover rounded-lg"
-                        />
-                      )}
-                      <div>
-                        <h3 className="font-semibold text-sm line-clamp-2">
-                          {product.name}
-                        </h3>
-                        <p className="text-xs text-muted-foreground line-clamp-2 mt-1">
-                          {product.description}
-                        </p>
-                      </div>
-                      <div className="flex items-center justify-between">
-                        <div className="space-y-1">
-                          <Badge variant="secondary" className="text-xs">
-                            {parseFloat(product.priceAfterDiscount || product.priceBeforeDiscount).toLocaleString()} تومان
-                          </Badge>
-                          <Badge variant="outline" className="text-xs block">
-                            موجودی: {product.quantity || 0}
-                          </Badge>
+            <div className="relative">
+              <div className="flex overflow-x-auto pb-4 gap-4 scrollbar-hide" style={{ scrollbarWidth: 'none', msOverflowStyle: 'none' }}>
+                {bestSellingProducts.map((product) => (
+                  <Card key={product.id} className="group hover:shadow-lg transition-all min-w-[280px] flex-shrink-0">
+                    <CardContent className="p-4">
+                      <div className="space-y-3">
+                        {product.image && (
+                          <img 
+                            src={product.image} 
+                            alt={product.name}
+                            className="w-full h-40 object-cover rounded-lg"
+                          />
+                        )}
+                        <div>
+                          <h3 className="font-semibold text-sm line-clamp-2">
+                            {product.name}
+                          </h3>
+                          <p className="text-xs text-muted-foreground line-clamp-2 mt-1">
+                            {product.description}
+                          </p>
                         </div>
-                        <Button
-                          size="sm"
-                          onClick={() => handleAddToCart(product.id)}
-                          disabled={addToCartMutation.isPending}
-                          data-testid={`button-add-to-cart-bestseller-${product.id}`}
-                        >
-                          <Plus className="h-4 w-4" />
-                        </Button>
+                        <div className="flex items-center justify-between">
+                          <div className="space-y-1">
+                            <Badge variant="secondary" className="text-xs">
+                              {parseFloat(product.priceAfterDiscount || product.priceBeforeDiscount).toLocaleString()} تومان
+                            </Badge>
+                            <Badge variant="outline" className="text-xs block">
+                              موجودی: {product.quantity || 0}
+                            </Badge>
+                          </div>
+                          <Button
+                            size="sm"
+                            onClick={() => handleAddToCart(product.id)}
+                            disabled={addToCartMutation.isPending}
+                            data-testid={`button-add-to-cart-bestseller-${product.id}`}
+                          >
+                            <Plus className="h-4 w-4" />
+                          </Button>
+                        </div>
                       </div>
-                    </div>
-                  </CardContent>
-                </Card>
-              ))}
+                    </CardContent>
+                  </Card>
+                ))}
+              </div>
             </div>
           </div>
 
