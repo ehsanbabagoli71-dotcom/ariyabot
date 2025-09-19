@@ -24,8 +24,9 @@ if (process.env.JWT_SECRET) {
     console.error("💡 Set JWT_SECRET to a random 32+ character string");
     process.exit(1);
   } else {
-    console.warn("🔧 DEV MODE: Using temporary random JWT secret - set JWT_SECRET env var");
-    jwtSecret = crypto.randomBytes(32).toString('hex');
+    console.warn("🔧 DEV MODE: Using fixed JWT secret for development - set JWT_SECRET env var for production");
+    // Use a fixed secret in development to prevent token invalidation on restart
+    jwtSecret = 'dev_jwt_secret_key_replit_persian_ecommerce_2024_fixed_for_development';
   }
 }
 

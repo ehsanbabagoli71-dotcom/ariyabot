@@ -204,7 +204,8 @@ export class DbStorage implements IStorage {
               categoryId: categoryIds.smartphones,
               priceBeforeDiscount: "45000000",
               priceAfterDiscount: "43000000",
-              quantity: 5
+              quantity: 5,
+              image: "/uploads/iphone15-pro-max.png"
             },
             {
               userId: testUser.id,
@@ -213,7 +214,8 @@ export class DbStorage implements IStorage {
               categoryId: categoryIds.smartphones,
               priceBeforeDiscount: "35000000",
               priceAfterDiscount: "33500000",
-              quantity: 8
+              quantity: 8,
+              image: "/uploads/samsung-s24-ultra.png"
             },
             {
               userId: testUser.id,
@@ -222,7 +224,8 @@ export class DbStorage implements IStorage {
               categoryId: categoryIds.accessories,
               priceBeforeDiscount: "350000",
               priceAfterDiscount: "299000",
-              quantity: 20
+              quantity: 20,
+              image: "/uploads/iphone-case.png"
             },
             {
               userId: testUser.id,
@@ -231,7 +234,8 @@ export class DbStorage implements IStorage {
               categoryId: categoryIds.accessories,
               priceBeforeDiscount: "120000",
               priceAfterDiscount: "95000",
-              quantity: 50
+              quantity: 50,
+              image: "/uploads/screen-protector.png"
             },
             {
               userId: testUser.id,
@@ -240,7 +244,8 @@ export class DbStorage implements IStorage {
               categoryId: categoryIds.tablets,
               priceBeforeDiscount: "28000000",
               priceAfterDiscount: "26500000",
-              quantity: 3
+              quantity: 3,
+              image: "/uploads/ipad-pro.png"
             },
             {
               userId: testUser.id,
@@ -249,7 +254,8 @@ export class DbStorage implements IStorage {
               categoryId: categoryIds.tablets,
               priceBeforeDiscount: "18000000",
               priceAfterDiscount: "17200000",
-              quantity: 6
+              quantity: 6,
+              image: "/uploads/samsung-tab-s9.png"
             }
           ];
 

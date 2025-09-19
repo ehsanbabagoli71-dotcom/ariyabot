@@ -296,7 +296,8 @@ export class MemStorage implements IStorage {
         categoryId: createdCategories[0].id,
         priceBeforeDiscount: "45000000",
         priceAfterDiscount: "43000000",
-        quantity: 5
+        quantity: 5,
+        image: "/uploads/iphone15-pro-max.png"
       },
       {
         name: "سامسونگ گلکسی S24 اولترا",
@@ -304,7 +305,8 @@ export class MemStorage implements IStorage {
         categoryId: createdCategories[0].id,
         priceBeforeDiscount: "35000000",
         priceAfterDiscount: "33500000",
-        quantity: 8
+        quantity: 8,
+        image: "/uploads/samsung-s24-ultra.png"
       },
       {
         name: "کاور چرمی آیفون",
@@ -312,7 +314,8 @@ export class MemStorage implements IStorage {
         categoryId: createdCategories[1].id,
         priceBeforeDiscount: "350000",
         priceAfterDiscount: "299000",
-        quantity: 20
+        quantity: 20,
+        image: "/uploads/iphone-case.png"
       },
       {
         name: "محافظ صفحه شیشه‌ای",
@@ -320,7 +323,8 @@ export class MemStorage implements IStorage {
         categoryId: createdCategories[1].id,
         priceBeforeDiscount: "120000",
         priceAfterDiscount: "95000",
-        quantity: 50
+        quantity: 50,
+        image: "/uploads/screen-protector.png"
       },
       {
         name: "آیپد پرو 12.9 اینچ",
@@ -328,7 +332,8 @@ export class MemStorage implements IStorage {
         categoryId: createdCategories[2].id,
         priceBeforeDiscount: "28000000",
         priceAfterDiscount: "26500000",
-        quantity: 3
+        quantity: 3,
+        image: "/uploads/ipad-pro.png"
       },
       {
         name: "تبلت سامسونگ گلکسی Tab S9",
@@ -336,7 +341,8 @@ export class MemStorage implements IStorage {
         categoryId: createdCategories[2].id,
         priceBeforeDiscount: "18000000",
         priceAfterDiscount: "17200000",
-        quantity: 6
+        quantity: 6,
+        image: "/uploads/samsung-tab-s9.png"
       }
     ];
 
@@ -347,7 +353,7 @@ export class MemStorage implements IStorage {
         name: productData.name,
         description: productData.description,
         categoryId: productData.categoryId,
-        image: null,
+        image: productData.image,
         quantity: productData.quantity,
         priceBeforeDiscount: productData.priceBeforeDiscount,
         priceAfterDiscount: productData.priceAfterDiscount,

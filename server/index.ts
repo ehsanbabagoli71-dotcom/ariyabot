@@ -2,6 +2,7 @@ import express, { type Request, Response, NextFunction } from "express";
 import { registerRoutes } from "./routes";
 import { setupVite, serveStatic, log } from "./vite";
 import { whatsAppMessageService } from "./whatsapp-service";
+import path from "path";
 
 const app = express();
 // JSON parsing middleware - با بررسی content-type  
@@ -13,6 +14,9 @@ app.use((req, res, next) => {
   express.json()(req, res, next);
 });
 app.use(express.urlencoded({ extended: false }));
+
+// Static serving for uploaded files
+app.use('/uploads', express.static(path.join(process.cwd(), 'uploads')));
 
 app.use((req, res, next) => {
   const start = Date.now();
