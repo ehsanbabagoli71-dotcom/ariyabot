@@ -1,11 +1,14 @@
 import { useState } from "react";
-import { useQuery } from "@tanstack/react-query";
+import { useQuery, useMutation } from "@tanstack/react-query";
 import { DashboardLayout } from "@/components/dashboard-layout";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
-import { Crown, Calendar, Clock, CheckCircle, AlertCircle, MessageSquare, Package, Send, User } from "lucide-react";
+import { Button } from "@/components/ui/button";
+import { Crown, Calendar, Clock, CheckCircle, AlertCircle, MessageSquare, Package, Send, User, Star, TrendingUp, Grid3X3, ShoppingCart, Plus } from "lucide-react";
 import { useAuth } from "@/hooks/use-auth";
 import { createAuthenticatedRequest } from "@/lib/auth";
+import { apiRequest, queryClient } from "@/lib/queryClient";
+import { useToast } from "@/hooks/use-toast";
 import type { UserSubscription, Ticket, Product, SentMessage } from "@shared/schema";
 
 // Extended subscription type with subscription details
@@ -72,12 +75,11 @@ export default function UserDashboard() {
     },
   });
 
-  // Get user's sent messages
+  // Get user's sent messages (for level 1 users)
   const { data: sentMessages = [], isLoading: messagesLoading } = useQuery<SentMessage[]>({
     queryKey: ["/api/sent-messages"],
-    enabled: !!user,
+    enabled: !!user && user.role !== "user_level_2",
     queryFn: async () => {
-      // Assuming we have an API for sent messages, if not we'll return empty for now
       try {
         const response = await createAuthenticatedRequest("/api/sent-messages");
         if (!response.ok) return [];
@@ -88,11 +90,262 @@ export default function UserDashboard() {
     },
   });
 
+  // Get available products for level 2 users (shopping)
+  const { data: availableProducts = [], isLoading: shoppingProductsLoading } = useQuery<Product[]>({
+    queryKey: ["/api/products/shop"],
+    enabled: !!user && user.role === "user_level_2",
+    queryFn: async () => {
+      try {
+        const response = await createAuthenticatedRequest("/api/products/shop");
+        if (!response.ok) return [];
+        return response.json();
+      } catch {
+        return [];
+      }
+    },
+  });
+
+  // Get user's cart for level 2 users
+  const { data: cartItems = [], isLoading: cartLoading } = useQuery<any[]>({
+    queryKey: ["/api/cart"],
+    enabled: !!user && user.role === "user_level_2",
+    queryFn: async () => {
+      try {
+        const response = await createAuthenticatedRequest("/api/cart");
+        if (!response.ok) return [];
+        return response.json();
+      } catch {
+        return [];
+      }
+    },
+  });
+
+  const { toast } = useToast();
+
+  // Add to cart mutation
+  const addToCartMutation = useMutation({
+    mutationFn: async ({ productId, quantity = 1 }: { productId: string; quantity?: number }) => {
+      const response = await apiRequest("POST", "/api/cart/items", {
+        productId,
+        quantity,
+      });
+      if (!response.ok) {
+        throw new Error("خطا در افزودن به سبد خرید");
+      }
+      return response.json();
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["/api/cart"] });
+      toast({
+        title: "موفقیت",
+        description: "محصول به سبد خرید اضافه شد",
+      });
+    },
+    onError: (error: Error) => {
+      toast({
+        title: "خطا",
+        description: error.message,
+        variant: "destructive",
+      });
+    },
+  });
+
   // Calculate stats
   const openTickets = tickets.filter(ticket => ticket.status !== "closed").length;
   const activeProducts = products.filter(product => product.isActive).length;
   const totalSentMessages = sentMessages.length;
+  const cartItemsCount = cartItems.reduce((sum, item) => sum + item.quantity, 0);
 
+  // Categorize products for shopping view
+  const hotProducts = availableProducts.slice(0, 8); // First 8 as hot
+  const bestSellingProducts = availableProducts
+    .filter(product => product.quantity && product.quantity > 0) // Use quantity as proxy for sales
+    .sort((a, b) => (b.quantity || 0) - (a.quantity || 0))
+    .slice(0, 8);
+  const allProducts = availableProducts.slice(0, 16); // Show 16 total products
+
+  const handleAddToCart = (productId: string) => {
+    addToCartMutation.mutate({ productId, quantity: 1 });
+  };
+
+  // Shopping view for user_level_2
+  if (user?.role === "user_level_2") {
+    return (
+      <DashboardLayout title="فروشگاه">
+        <div className="space-y-6" data-testid="shopping-dashboard-content">
+          {/* Cart Summary */}
+          <Card className="bg-gradient-to-r from-green-50 to-blue-50 dark:from-green-950/30 dark:to-blue-950/30 border-green-200 dark:border-green-800">
+            <CardContent className="p-4">
+              <div className="flex items-center justify-between">
+                <div className="flex items-center gap-3">
+                  <ShoppingCart className="h-8 w-8 text-green-600" />
+                  <div>
+                    <h2 className="font-bold text-lg text-green-900 dark:text-green-300">سبد خرید شما</h2>
+                    <p className="text-sm text-green-700 dark:text-green-400">
+                      {cartItemsCount} محصول در سبد خرید
+                    </p>
+                  </div>
+                </div>
+                <Button 
+                  variant="default"
+                  onClick={() => window.location.href = '/cart'}
+                  className="bg-green-600 hover:bg-green-700"
+                  data-testid="button-view-cart"
+                >
+                  مشاهده سبد خرید
+                </Button>
+              </div>
+            </CardContent>
+          </Card>
+
+          {/* Hot Products */}
+          <div className="space-y-4">
+            <div className="flex items-center gap-2">
+              <Star className="h-6 w-6 text-red-500" />
+              <h2 className="text-xl font-bold">محصولات داغ</h2>
+            </div>
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+              {hotProducts.map((product) => (
+                <Card key={product.id} className="group hover:shadow-lg transition-all">
+                  <CardContent className="p-4">
+                    <div className="space-y-3">
+                      {product.image && (
+                        <img 
+                          src={product.image} 
+                          alt={product.name}
+                          className="w-full h-32 object-cover rounded-lg"
+                        />
+                      )}
+                      <div>
+                        <h3 className="font-semibold text-sm line-clamp-2" data-testid={`text-product-name-${product.id}`}>
+                          {product.name}
+                        </h3>
+                        <p className="text-xs text-muted-foreground line-clamp-2 mt-1">
+                          {product.description}
+                        </p>
+                      </div>
+                      <div className="flex items-center justify-between">
+                        <Badge variant="secondary" className="text-xs">
+                          {parseFloat(product.priceAfterDiscount || product.priceBeforeDiscount).toLocaleString()} تومان
+                        </Badge>
+                        <Button
+                          size="sm"
+                          onClick={() => handleAddToCart(product.id)}
+                          disabled={addToCartMutation.isPending}
+                          data-testid={`button-add-to-cart-${product.id}`}
+                        >
+                          <Plus className="h-4 w-4" />
+                        </Button>
+                      </div>
+                    </div>
+                  </CardContent>
+                </Card>
+              ))}
+            </div>
+          </div>
+
+          {/* Best Selling Products */}
+          <div className="space-y-4">
+            <div className="flex items-center gap-2">
+              <TrendingUp className="h-6 w-6 text-green-500" />
+              <h2 className="text-xl font-bold">پرفروش‌ترین محصولات</h2>
+            </div>
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+              {bestSellingProducts.map((product) => (
+                <Card key={product.id} className="group hover:shadow-lg transition-all">
+                  <CardContent className="p-4">
+                    <div className="space-y-3">
+                      {product.image && (
+                        <img 
+                          src={product.image} 
+                          alt={product.name}
+                          className="w-full h-32 object-cover rounded-lg"
+                        />
+                      )}
+                      <div>
+                        <h3 className="font-semibold text-sm line-clamp-2">
+                          {product.name}
+                        </h3>
+                        <p className="text-xs text-muted-foreground line-clamp-2 mt-1">
+                          {product.description}
+                        </p>
+                      </div>
+                      <div className="flex items-center justify-between">
+                        <div className="space-y-1">
+                          <Badge variant="secondary" className="text-xs">
+                            {parseFloat(product.priceAfterDiscount || product.priceBeforeDiscount).toLocaleString()} تومان
+                          </Badge>
+                          <Badge variant="outline" className="text-xs block">
+                            موجودی: {product.quantity || 0}
+                          </Badge>
+                        </div>
+                        <Button
+                          size="sm"
+                          onClick={() => handleAddToCart(product.id)}
+                          disabled={addToCartMutation.isPending}
+                          data-testid={`button-add-to-cart-bestseller-${product.id}`}
+                        >
+                          <Plus className="h-4 w-4" />
+                        </Button>
+                      </div>
+                    </div>
+                  </CardContent>
+                </Card>
+              ))}
+            </div>
+          </div>
+
+          {/* All Products */}
+          <div className="space-y-4">
+            <div className="flex items-center gap-2">
+              <Grid3X3 className="h-6 w-6 text-blue-500" />
+              <h2 className="text-xl font-bold">تمامی محصولات</h2>
+            </div>
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+              {allProducts.map((product) => (
+                <Card key={product.id} className="group hover:shadow-lg transition-all">
+                  <CardContent className="p-4">
+                    <div className="space-y-3">
+                      {product.image && (
+                        <img 
+                          src={product.image} 
+                          alt={product.name}
+                          className="w-full h-32 object-cover rounded-lg"
+                        />
+                      )}
+                      <div>
+                        <h3 className="font-semibold text-sm line-clamp-2">
+                          {product.name}
+                        </h3>
+                        <p className="text-xs text-muted-foreground line-clamp-2 mt-1">
+                          {product.description}
+                        </p>
+                      </div>
+                      <div className="flex items-center justify-between">
+                        <Badge variant="secondary" className="text-xs">
+                          {parseFloat(product.priceAfterDiscount || product.priceBeforeDiscount).toLocaleString()} تومان
+                        </Badge>
+                        <Button
+                          size="sm"
+                          onClick={() => handleAddToCart(product.id)}
+                          disabled={addToCartMutation.isPending}
+                          data-testid={`button-add-to-cart-all-${product.id}`}
+                        >
+                          <Plus className="h-4 w-4" />
+                        </Button>
+                      </div>
+                    </div>
+                  </CardContent>
+                </Card>
+              ))}
+            </div>
+          </div>
+        </div>
+      </DashboardLayout>
+    );
+  }
+
+  // Admin/Level1 dashboard view
   return (
     <DashboardLayout title="پیشخوان">
       <div className="space-y-4" data-testid="dashboard-content">

@@ -23,7 +23,11 @@ import {
   Home,
   FolderTree,
   MessageCircle,
-  ShoppingCart
+  ShoppingCart,
+  MapPin,
+  Package,
+  Wallet,
+  DollarSign
 } from "lucide-react";
 import { useAuth } from "@/hooks/use-auth";
 
@@ -34,6 +38,8 @@ export function Sidebar() {
   const [whatsappOpen, setWhatsappOpen] = useState(false);
   const [settingsOpen, setSettingsOpen] = useState(false);
   const [ticketsOpen, setTicketsOpen] = useState(false);
+  const [level2MenuOpen, setLevel2MenuOpen] = useState(false);
+  const [level1MenuOpen, setLevel1MenuOpen] = useState(false);
 
   const isActive = (path: string) => location === path;
 
@@ -68,6 +74,17 @@ export function Sidebar() {
   const settingsItems = [
     { path: "/ai-token", label: "توکن هوش مصنوعی", icon: Bot, adminOnly: true },
     { path: "/profile", label: "اطلاعات کاربری", icon: User, adminOnly: false },
+  ];
+
+  const level2MenuItems = [
+    { path: "/addresses", label: "آدرس‌ها", icon: MapPin },
+    { path: "/orders", label: "سفارشات من", icon: Package },
+    { path: "/financial", label: "امور مالی", icon: Wallet },
+  ];
+
+  const level1MenuItems = [
+    { path: "/received-orders", label: "سفارشات دریافتی", icon: Package },
+    { path: "/transactions", label: "مدیریت تراکنش‌ها", icon: DollarSign },
   ];
 
   return (
@@ -181,6 +198,46 @@ export function Sidebar() {
                   سبد خرید
                 </Button>
               </Link>
+            </li>
+          )}
+
+          {/* User Level 2 Menu - Orders, Addresses, Financial */}
+          {user?.role === "user_level_2" && (
+            <li>
+              <Collapsible open={level2MenuOpen} onOpenChange={setLevel2MenuOpen}>
+                <CollapsibleTrigger asChild>
+                  <Button
+                    variant="ghost"
+                    className="w-full justify-start"
+                    data-testid="button-level2-menu-toggle"
+                  >
+                    <User className="w-5 h-5 ml-2" />
+                    خدمات من
+                    <ChevronDown className={cn(
+                      "w-4 h-4 mr-auto transition-transform",
+                      level2MenuOpen && "rotate-180"
+                    )} />
+                  </Button>
+                </CollapsibleTrigger>
+                <CollapsibleContent className="mr-6 space-y-1">
+                  {level2MenuItems.map((item) => (
+                    <Link key={item.path} href={item.path}>
+                      <Button
+                        variant={isActive(item.path) ? "default" : "ghost"}
+                        size="sm"
+                        className={cn(
+                          "w-full justify-start",
+                          isActive(item.path) && "bg-primary text-primary-foreground"
+                        )}
+                        data-testid={`link-${item.path.substring(1)}`}
+                      >
+                        <item.icon className="w-4 h-4 ml-2" />
+                        {item.label}
+                      </Button>
+                    </Link>
+                  ))}
+                </CollapsibleContent>
+              </Collapsible>
             </li>
           )}
           
@@ -302,6 +359,46 @@ export function Sidebar() {
                         </Button>
                       </Link>
                     )
+                  ))}
+                </CollapsibleContent>
+              </Collapsible>
+            </li>
+          )}
+
+          {/* Level 1 Business Menu - Orders, Transactions */}
+          {user?.role === "user_level_1" && (
+            <li>
+              <Collapsible open={level1MenuOpen} onOpenChange={setLevel1MenuOpen}>
+                <CollapsibleTrigger asChild>
+                  <Button
+                    variant="ghost"
+                    className="w-full justify-start"
+                    data-testid="button-level1-menu-toggle"
+                  >
+                    <Package className="w-5 h-5 ml-2" />
+                    مدیریت کسب‌وکار
+                    <ChevronDown className={cn(
+                      "w-4 h-4 mr-auto transition-transform",
+                      level1MenuOpen && "rotate-180"
+                    )} />
+                  </Button>
+                </CollapsibleTrigger>
+                <CollapsibleContent className="mr-6 space-y-1">
+                  {level1MenuItems.map((item) => (
+                    <Link key={item.path} href={item.path}>
+                      <Button
+                        variant={isActive(item.path) ? "default" : "ghost"}
+                        size="sm"
+                        className={cn(
+                          "w-full justify-start",
+                          isActive(item.path) && "bg-primary text-primary-foreground"
+                        )}
+                        data-testid={`link-${item.path.substring(1)}`}
+                      >
+                        <item.icon className="w-4 h-4 ml-2" />
+                        {item.label}
+                      </Button>
+                    </Link>
                   ))}
                 </CollapsibleContent>
               </Collapsible>

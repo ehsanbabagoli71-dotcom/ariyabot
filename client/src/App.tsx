@@ -24,6 +24,11 @@ import Reports from "@/pages/user/reports";
 import SubUsers from "@/pages/user/sub-users";
 import WelcomeMessage from "@/pages/admin/welcome-message";
 import Cart from "@/pages/cart";
+import Addresses from "@/pages/user/addresses";
+import Orders from "@/pages/user/orders";
+import ReceivedOrders from "@/pages/user/received-orders";
+import Financial from "@/pages/user/financial";
+import SuccessfulTransactions from "@/pages/user/successful-transactions";
 import NotFound from "@/pages/not-found";
 
 function ProtectedRoute({ component: Component }: { component: React.ComponentType }) {
@@ -158,6 +163,11 @@ function Router() {
       <Route path="/products" component={() => <ProtectedRoute component={ProductList} />} />
       <Route path="/sub-users" component={() => <Level1Route component={SubUsers} />} />
       <Route path="/cart" component={() => <Level2Route component={Cart} />} />
+      <Route path="/addresses" component={() => <Level2Route component={Addresses} />} />
+      <Route path="/orders" component={() => <Level2Route component={Orders} />} />
+      <Route path="/received-orders" component={() => <Level1Route component={ReceivedOrders} />} />
+      <Route path="/financial" component={() => <Level2Route component={Financial} />} />
+      <Route path="/transactions" component={() => <Level1Route component={SuccessfulTransactions} />} />
       <Route component={NotFound} />
     </Switch>
   );
