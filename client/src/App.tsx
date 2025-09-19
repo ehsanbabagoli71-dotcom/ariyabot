@@ -4,6 +4,7 @@ import { QueryClientProvider } from "@tanstack/react-query";
 import { Toaster } from "@/components/ui/toaster";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import { useAuth } from "@/hooks/use-auth";
+import { DashboardLayout } from "@/components/dashboard-layout";
 import Login from "@/pages/login";
 import Register from "@/pages/register";
 import Dashboard from "@/pages/dashboard";
@@ -135,6 +136,15 @@ function Level2Route({ component: Component }: { component: React.ComponentType 
   return <Component />;
 }
 
+// Helper function to wrap components with DashboardLayout
+function WithLayout(Component: React.ComponentType, title: string) {
+  return () => (
+    <DashboardLayout title={title}>
+      <Component />
+    </DashboardLayout>
+  );
+}
+
 function Router() {
   const { user } = useAuth();
   
@@ -164,10 +174,10 @@ function Router() {
       <Route path="/sub-users" component={() => <Level1Route component={SubUsers} />} />
       <Route path="/cart" component={() => <Level2Route component={Cart} />} />
       <Route path="/addresses" component={() => <Level2Route component={Addresses} />} />
-      <Route path="/orders" component={() => <Level2Route component={Orders} />} />
-      <Route path="/received-orders" component={() => <Level1Route component={ReceivedOrders} />} />
-      <Route path="/financial" component={() => <Level2Route component={Financial} />} />
-      <Route path="/transactions" component={() => <Level1Route component={SuccessfulTransactions} />} />
+      <Route path="/orders" component={() => <Level2Route component={WithLayout(Orders, "سفارشات من")} />} />
+      <Route path="/received-orders" component={() => <AdminOrLevel1Route component={WithLayout(ReceivedOrders, "سفارشات دریافتی")} />} />
+      <Route path="/financial" component={() => <Level2Route component={WithLayout(Financial, "امور مالی")} />} />
+      <Route path="/transactions" component={() => <AdminOrLevel1Route component={WithLayout(SuccessfulTransactions, "مدیریت تراکنش‌ها")} />} />
       <Route component={NotFound} />
     </Switch>
   );
