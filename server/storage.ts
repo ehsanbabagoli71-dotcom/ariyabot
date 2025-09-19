@@ -162,6 +162,9 @@ export class MemStorage implements IStorage {
     
     // Create default free subscription
     this.initializeDefaultSubscription();
+    
+    // Create test data (user, categories, products)
+    this.initializeTestData().catch(console.error);
   }
 
   private async initializeAdminUser() {
@@ -224,6 +227,137 @@ export class MemStorage implements IStorage {
       createdAt: new Date(),
     };
     this.subscriptions.set(defaultSubscription.id, defaultSubscription);
+  }
+
+  private async initializeTestData() {
+    // ایجاد کاربر سطح 1 تستی
+    const testUserPassword = await bcrypt.hash("test123", 10);
+    const testUser: User = {
+      id: randomUUID(),
+      username: "test_seller",
+      firstName: "علی",
+      lastName: "فروشنده تستی",
+      email: "test@seller.com",
+      phone: "09111234567",
+      whatsappNumber: "09111234567",
+      whatsappToken: null,
+      password: testUserPassword,
+      googleId: null,
+      role: "user_level_1",
+      parentUserId: null,
+      profilePicture: null,
+      isWhatsappRegistered: false,
+      welcomeMessage: null,
+      createdAt: new Date(),
+    };
+    this.users.set(testUser.id, testUser);
+    console.log("🔑 کاربر سطح 1 تستی ایجاد شد - نام کاربری: test_seller، رمز عبور: test123");
+
+    // ایجاد 3 دسته‌بندی موبایل
+    const mobileCategories = [
+      {
+        name: "گوشی‌های هوشمند",
+        description: "انواع گوشی‌های هوشمند اندروید و آیفون"
+      },
+      {
+        name: "لوازم جانبی موبایل",
+        description: "کیف، کاور، محافظ صفحه و سایر لوازم جانبی"
+      },
+      {
+        name: "تبلت و آیپد",
+        description: "انواع تبلت‌های اندروید و آیپد اپل"
+      }
+    ];
+
+    const createdCategories: Category[] = [];
+    
+    for (const categoryData of mobileCategories) {
+      const category: Category = {
+        id: randomUUID(),
+        name: categoryData.name,
+        description: categoryData.description,
+        parentId: null,
+        createdBy: testUser.id,
+        order: createdCategories.length,
+        isActive: true,
+        createdAt: new Date(),
+        updatedAt: new Date(),
+      };
+      this.categories.set(category.id, category);
+      createdCategories.push(category);
+    }
+    console.log("📱 3 دسته‌بندی موبایل تستی ایجاد شد");
+
+    // ایجاد 6 محصول تستی
+    const testProducts = [
+      {
+        name: "آیفون 15 پرو مکس",
+        description: "گوشی آیفون 15 پرو مکس با ظرفیت 256 گیگابایت، رنگ طلایی",
+        categoryId: createdCategories[0].id,
+        priceBeforeDiscount: "45000000",
+        priceAfterDiscount: "43000000",
+        quantity: 5
+      },
+      {
+        name: "سامسونگ گلکسی S24 اولترا",
+        description: "گوشی سامسونگ گلکسی S24 اولترا با ظرفیت 512 گیگابایت",
+        categoryId: createdCategories[0].id,
+        priceBeforeDiscount: "35000000",
+        priceAfterDiscount: "33500000",
+        quantity: 8
+      },
+      {
+        name: "کاور چرمی آیفون",
+        description: "کاور چرمی اصل برای آیفون 15 سری، رنگ قهوه‌ای",
+        categoryId: createdCategories[1].id,
+        priceBeforeDiscount: "350000",
+        priceAfterDiscount: "299000",
+        quantity: 20
+      },
+      {
+        name: "محافظ صفحه شیشه‌ای",
+        description: "محافظ صفحه شیشه‌ای ضد ضربه برای انواع گوشی",
+        categoryId: createdCategories[1].id,
+        priceBeforeDiscount: "120000",
+        priceAfterDiscount: "95000",
+        quantity: 50
+      },
+      {
+        name: "آیپد پرو 12.9 اینچ",
+        description: "تبلت آیپد پرو 12.9 اینچ نسل پنجم با چیپ M2",
+        categoryId: createdCategories[2].id,
+        priceBeforeDiscount: "28000000",
+        priceAfterDiscount: "26500000",
+        quantity: 3
+      },
+      {
+        name: "تبلت سامسونگ گلکسی Tab S9",
+        description: "تبلت سامسونگ گلکسی Tab S9 با صفحه 11 اینچ",
+        categoryId: createdCategories[2].id,
+        priceBeforeDiscount: "18000000",
+        priceAfterDiscount: "17200000",
+        quantity: 6
+      }
+    ];
+
+    for (const productData of testProducts) {
+      const product: Product = {
+        id: randomUUID(),
+        userId: testUser.id,
+        name: productData.name,
+        description: productData.description,
+        categoryId: productData.categoryId,
+        image: null,
+        quantity: productData.quantity,
+        priceBeforeDiscount: productData.priceBeforeDiscount,
+        priceAfterDiscount: productData.priceAfterDiscount,
+        isActive: true,
+        createdAt: new Date(),
+      };
+      this.products.set(product.id, product);
+    }
+    console.log("🛍️ 6 محصول تستی ایجاد شد");
+    console.log("✅ تمام داده‌های تستی با موفقیت ایجاد شدند");
   }
 
   // Users
