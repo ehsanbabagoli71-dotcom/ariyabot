@@ -125,9 +125,12 @@ export default function UserDashboard() {
   // Add to cart mutation
   const addToCartMutation = useMutation({
     mutationFn: async ({ productId, quantity = 1 }: { productId: string; quantity?: number }) => {
-      const response = await apiRequest("POST", "/api/cart/items", {
-        productId,
-        quantity,
+      const response = await createAuthenticatedRequest("/api/cart/add", {
+        method: "POST",
+        body: JSON.stringify({
+          productId,
+          quantity,
+        }),
       });
       if (!response.ok) {
         throw new Error("خطا در افزودن به سبد خرید");

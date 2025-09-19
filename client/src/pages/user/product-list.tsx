@@ -153,7 +153,10 @@ export default function ProductList() {
   // Add to cart mutation for user_level_2
   const addToCartMutation = useMutation({
     mutationFn: async ({ productId, quantity = 1 }: { productId: string; quantity?: number }) => {
-      const res = await apiRequest("POST", "/api/cart/add", { productId, quantity });
+      const res = await createAuthenticatedRequest("/api/cart/add", {
+        method: "POST",
+        body: JSON.stringify({ productId, quantity }),
+      });
       if (!res.ok) {
         const errorData = await res.json().catch(() => ({ message: "خطا در اضافه کردن به سبد خرید" }));
         throw new Error(errorData.message || "خطا در اضافه کردن به سبد خرید");
@@ -422,7 +425,7 @@ export default function ProductList() {
                     <TableHead className="text-right">تعداد</TableHead>
                     <TableHead className="text-right">قیمت اصلی</TableHead>
                     <TableHead className="text-right">قیمت تخفیف‌دار</TableHead>
-                    <TableHead className="text-right">وضعیت</TableHead>
+                    {!isLevel2User && <TableHead className="text-right">وضعیت</TableHead>}
                     <TableHead className="text-right">عملیات</TableHead>
                   </TableRow>
                 </TableHeader>
@@ -467,19 +470,21 @@ export default function ProductList() {
                         <TableCell className="font-medium text-foreground" data-testid={`text-product-price-after-${product.id}`}>
                           {formatPrice(product.priceAfterDiscount)}
                         </TableCell>
-                        <TableCell>
-                          <div className="flex items-center gap-2" dir="ltr">
-                            <Switch
-                              checked={product.isActive}
-                              onCheckedChange={() => handleToggleActive(product)}
-                              data-testid={`switch-product-active-${product.id}`}
-                              className="data-[state=checked]:bg-primary [&>span]:data-[state=checked]:translate-x-5 [&>span]:data-[state=unchecked]:translate-x-0"
-                            />
-                            <span className={`text-sm ${product.isActive ? 'text-foreground' : 'text-muted-foreground'}`} dir="rtl">
-                              {product.isActive ? 'فعال' : 'غیرفعال'}
-                            </span>
-                          </div>
-                        </TableCell>
+                        {!isLevel2User && (
+                          <TableCell>
+                            <div className="flex items-center gap-2" dir="ltr">
+                              <Switch
+                                checked={product.isActive}
+                                onCheckedChange={() => handleToggleActive(product)}
+                                data-testid={`switch-product-active-${product.id}`}
+                                className="data-[state=checked]:bg-primary [&>span]:data-[state=checked]:translate-x-5 [&>span]:data-[state=unchecked]:translate-x-0"
+                              />
+                              <span className={`text-sm ${product.isActive ? 'text-foreground' : 'text-muted-foreground'}`} dir="rtl">
+                                {product.isActive ? 'فعال' : 'غیرفعال'}
+                              </span>
+                            </div>
+                          </TableCell>
+                        )}
                         <TableCell>
                           <div className="flex items-center space-x-2 space-x-reverse">
                             {isLevel2User ? (
