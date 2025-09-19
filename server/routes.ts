@@ -6,7 +6,7 @@ import jwt from "jsonwebtoken";
 import multer from "multer";
 import path from "path";
 import { fileURLToPath } from "url";
-import { insertUserSchema, insertSubUserSchema, insertTicketSchema, insertSubscriptionSchema, insertProductSchema, insertWhatsappSettingsSchema, insertSentMessageSchema, insertReceivedMessageSchema, insertAiTokenSettingsSchema, insertUserSubscriptionSchema, insertCategorySchema, insertCartItemSchema, updateCategoryOrderSchema, ticketReplySchema, type User } from "@shared/schema";
+import { insertUserSchema, insertSubUserSchema, insertTicketSchema, insertSubscriptionSchema, insertProductSchema, insertWhatsappSettingsSchema, insertSentMessageSchema, insertReceivedMessageSchema, insertAiTokenSettingsSchema, insertUserSubscriptionSchema, insertCategorySchema, insertCartItemSchema, insertAddressSchema, updateAddressSchema, insertOrderSchema, insertOrderItemSchema, insertTransactionSchema, updateCategoryOrderSchema, ticketReplySchema, type User } from "@shared/schema";
 import { z } from "zod";
 
 const __filename = fileURLToPath(import.meta.url);
@@ -1711,6 +1711,292 @@ export async function registerRoutes(app: Express): Promise<Server> {
       res.json({ message: "سبد خرید با موفقیت پاک شد" });
     } catch (error) {
       res.status(500).json({ message: "خطا در پاک کردن سبد خرید" });
+    }
+  });
+
+  // =================
+  // ADDRESS ROUTES
+  // =================
+  
+  // Get user addresses
+  app.get("/api/addresses", authenticateToken, requireLevel2, async (req: AuthRequest, res) => {
+    try {
+      const addresses = await storage.getAddressesByUser(req.user!.id);
+      res.json(addresses);
+    } catch (error) {
+      res.status(500).json({ message: "خطا در دریافت آدرس‌ها" });
+    }
+  });
+
+  // Create new address
+  app.post("/api/addresses", authenticateToken, requireLevel2, async (req: AuthRequest, res) => {
+    try {
+      const validatedData = insertAddressSchema.parse({
+        ...req.body,
+        userId: req.user!.id
+      });
+
+      const address = await storage.createAddress(validatedData);
+      res.status(201).json(address);
+    } catch (error: any) {
+      if (error.name === "ZodError") {
+        return res.status(400).json({ message: error.errors[0]?.message || "داده‌های ورودی نامعتبر" });
+      }
+      res.status(500).json({ message: "خطا در ایجاد آدرس" });
+    }
+  });
+
+  // Update address
+  app.put("/api/addresses/:id", authenticateToken, requireLevel2, async (req: AuthRequest, res) => {
+    try {
+      const validatedData = updateAddressSchema.parse(req.body);
+      const updatedAddress = await storage.updateAddress(req.params.id, validatedData, req.user!.id);
+      
+      if (!updatedAddress) {
+        return res.status(404).json({ message: "آدرس یافت نشد" });
+      }
+
+      res.json(updatedAddress);
+    } catch (error: any) {
+      if (error.name === "ZodError") {
+        return res.status(400).json({ message: error.errors[0]?.message || "داده‌های ورودی نامعتبر" });
+      }
+      res.status(500).json({ message: "خطا در بروزرسانی آدرس" });
+    }
+  });
+
+  // Delete address
+  app.delete("/api/addresses/:id", authenticateToken, requireLevel2, async (req: AuthRequest, res) => {
+    try {
+      const success = await storage.deleteAddress(req.params.id, req.user!.id);
+      
+      if (!success) {
+        return res.status(404).json({ message: "آدرس یافت نشد" });
+      }
+
+      res.json({ message: "آدرس با موفقیت حذف شد" });
+    } catch (error) {
+      res.status(500).json({ message: "خطا در حذف آدرس" });
+    }
+  });
+
+  // Set default address
+  app.put("/api/addresses/:id/default", authenticateToken, requireLevel2, async (req: AuthRequest, res) => {
+    try {
+      const success = await storage.setDefaultAddress(req.params.id, req.user!.id);
+      
+      if (!success) {
+        return res.status(404).json({ message: "آدرس یافت نشد" });
+      }
+
+      res.json({ message: "آدرس پیش‌فرض تنظیم شد" });
+    } catch (error) {
+      res.status(500).json({ message: "خطا در تنظیم آدرس پیش‌فرض" });
+    }
+  });
+
+  // =================
+  // ORDER ROUTES
+  // =================
+  
+  // Get user orders (for level 2 users - their own orders)
+  app.get("/api/orders", authenticateToken, requireLevel2, async (req: AuthRequest, res) => {
+    try {
+      const orders = await storage.getOrdersByUser(req.user!.id);
+      res.json(orders);
+    } catch (error) {
+      res.status(500).json({ message: "خطا در دریافت سفارشات" });
+    }
+  });
+
+  // Get orders for seller (for level 1 users - orders from their customers)
+  app.get("/api/orders/seller", authenticateToken, requireAdminOrLevel1, async (req: AuthRequest, res) => {
+    try {
+      const orders = await storage.getOrdersBySeller(req.user!.id);
+      res.json(orders);
+    } catch (error) {
+      res.status(500).json({ message: "خطا در دریافت سفارشات" });
+    }
+  });
+
+  // Create new order from cart
+  app.post("/api/orders", authenticateToken, requireLevel2, async (req: AuthRequest, res) => {
+    try {
+      const cartItems = await storage.getCartItemsWithProducts(req.user!.id);
+      
+      if (cartItems.length === 0) {
+        return res.status(400).json({ message: "سبد خرید خالی است" });
+      }
+
+      // Group cart items by seller
+      const ordersBySeller = new Map();
+      for (const item of cartItems) {
+        const product = await storage.getProduct(item.productId, req.user!.id, req.user!.role);
+        if (!product) continue;
+        
+        const sellerId = product.userId;
+        if (!ordersBySeller.has(sellerId)) {
+          ordersBySeller.set(sellerId, {
+            items: [],
+            totalAmount: 0
+          });
+        }
+        
+        const sellerOrder = ordersBySeller.get(sellerId);
+        sellerOrder.items.push(item);
+        sellerOrder.totalAmount += parseFloat(item.totalPrice);
+      }
+
+      const createdOrders = [];
+      
+      // Create separate order for each seller
+      for (const [sellerId, orderData] of ordersBySeller) {
+        const order = await storage.createOrder({
+          userId: req.user!.id,
+          sellerId,
+          totalAmount: orderData.totalAmount.toString(),
+          addressId: req.body.addressId || null,
+          notes: req.body.notes || null
+        });
+
+        // Create order items
+        for (const item of orderData.items) {
+          await storage.createOrderItem({
+            orderId: order.id,
+            productId: item.productId,
+            quantity: item.quantity,
+            unitPrice: item.unitPrice,
+            totalPrice: item.totalPrice
+          });
+        }
+
+        createdOrders.push(order);
+      }
+
+      // Clear the cart after successful order creation
+      await storage.clearCart(req.user!.id);
+
+      res.status(201).json({ 
+        message: "سفارش با موفقیت ثبت شد",
+        orders: createdOrders 
+      });
+    } catch (error: any) {
+      console.error("Order creation error:", error);
+      res.status(500).json({ message: "خطا در ثبت سفارش" });
+    }
+  });
+
+  // Update order status (only for sellers)
+  app.put("/api/orders/:id/status", authenticateToken, requireAdminOrLevel1, async (req: AuthRequest, res) => {
+    try {
+      const { status } = req.body;
+      
+      if (!['pending', 'preparing', 'shipped', 'delivered', 'cancelled'].includes(status)) {
+        return res.status(400).json({ message: "وضعیت نامعتبر" });
+      }
+
+      const updatedOrder = await storage.updateOrderStatus(req.params.id, status, req.user!.id);
+      
+      if (!updatedOrder) {
+        return res.status(404).json({ message: "سفارش یافت نشد یا دسترسی ندارید" });
+      }
+
+      res.json(updatedOrder);
+    } catch (error) {
+      res.status(500).json({ message: "خطا در بروزرسانی وضعیت سفارش" });
+    }
+  });
+
+  // Get order details with items
+  app.get("/api/orders/:id", authenticateToken, async (req: AuthRequest, res) => {
+    try {
+      const order = await storage.getOrder(req.params.id);
+      
+      if (!order) {
+        return res.status(404).json({ message: "سفارش یافت نشد" });
+      }
+
+      // Check if user has access to this order
+      if (req.user!.role === 'user_level_2' && order.userId !== req.user!.id) {
+        return res.status(403).json({ message: "دسترسی به سفارش ندارید" });
+      }
+      
+      if (req.user!.role === 'user_level_1' && order.sellerId !== req.user!.id) {
+        return res.status(403).json({ message: "دسترسی به سفارش ندارید" });
+      }
+
+      const orderItems = await storage.getOrderItemsWithProducts(order.id);
+      
+      res.json({
+        ...order,
+        items: orderItems
+      });
+    } catch (error) {
+      res.status(500).json({ message: "خطا در دریافت جزئیات سفارش" });
+    }
+  });
+
+  // =================
+  // TRANSACTION ROUTES
+  // =================
+  
+  // Get user transactions
+  app.get("/api/transactions", authenticateToken, async (req: AuthRequest, res) => {
+    try {
+      const { type } = req.query;
+      
+      let transactions;
+      if (type && typeof type === 'string') {
+        transactions = await storage.getTransactionsByUserAndType(req.user!.id, type);
+      } else {
+        transactions = await storage.getTransactionsByUser(req.user!.id);
+      }
+      
+      res.json(transactions);
+    } catch (error) {
+      res.status(500).json({ message: "خطا در دریافت تراکنش‌ها" });
+    }
+  });
+
+  // Create new transaction (deposit/withdraw)
+  app.post("/api/transactions", authenticateToken, requireLevel2, async (req: AuthRequest, res) => {
+    try {
+      const validatedData = insertTransactionSchema.parse({
+        ...req.body,
+        userId: req.user!.id
+      });
+
+      const transaction = await storage.createTransaction(validatedData);
+      res.status(201).json(transaction);
+    } catch (error: any) {
+      if (error.name === "ZodError") {
+        return res.status(400).json({ message: error.errors[0]?.message || "داده‌های ورودی نامعتبر" });
+      }
+      res.status(500).json({ message: "خطا در ایجاد تراکنش" });
+    }
+  });
+
+  // Get user balance
+  app.get("/api/balance", authenticateToken, requireLevel2, async (req: AuthRequest, res) => {
+    try {
+      const balance = await storage.getUserBalance(req.user!.id);
+      res.json({ balance });
+    } catch (error) {
+      res.status(500).json({ message: "خطا در دریافت موجودی" });
+    }
+  });
+
+  // Get successful transactions for level 1 users (from their customers)
+  app.get("/api/transactions/successful", authenticateToken, requireAdminOrLevel1, async (req: AuthRequest, res) => {
+    try {
+      // Get sub-users (level 2 customers)
+      const subUsers = await storage.getSubUsers(req.user!.id);
+      const subUserIds = subUsers.map(user => user.id);
+      
+      const transactions = await storage.getSuccessfulTransactionsBySellers([req.user!.id]);
+      res.json(transactions);
+    } catch (error) {
+      res.status(500).json({ message: "خطا در دریافت تراکنش‌های موفق" });
     }
   });
 

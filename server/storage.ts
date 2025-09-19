@@ -1,4 +1,4 @@
-import { type User, type InsertUser, type Ticket, type InsertTicket, type Subscription, type InsertSubscription, type Product, type InsertProduct, type WhatsappSettings, type InsertWhatsappSettings, type SentMessage, type InsertSentMessage, type ReceivedMessage, type InsertReceivedMessage, type AiTokenSettings, type InsertAiTokenSettings, type UserSubscription, type InsertUserSubscription, type Category, type InsertCategory, type Cart, type InsertCart, type CartItem, type InsertCartItem } from "@shared/schema";
+import { type User, type InsertUser, type Ticket, type InsertTicket, type Subscription, type InsertSubscription, type Product, type InsertProduct, type WhatsappSettings, type InsertWhatsappSettings, type SentMessage, type InsertSentMessage, type ReceivedMessage, type InsertReceivedMessage, type AiTokenSettings, type InsertAiTokenSettings, type UserSubscription, type InsertUserSubscription, type Category, type InsertCategory, type Cart, type InsertCart, type CartItem, type InsertCartItem, type Address, type InsertAddress, type Order, type InsertOrder, type OrderItem, type InsertOrderItem, type Transaction, type InsertTransaction } from "@shared/schema";
 import { randomUUID } from "crypto";
 import bcrypt from "bcryptjs";
 
@@ -89,6 +89,36 @@ export interface IStorage {
   updateCartItemQuantity(itemId: string, quantity: number, userId: string): Promise<CartItem | undefined>;
   removeFromCart(itemId: string, userId: string): Promise<boolean>;
   clearCart(userId: string): Promise<boolean>;
+  
+  // Addresses
+  getAddress(id: string): Promise<Address | undefined>;
+  getAddressesByUser(userId: string): Promise<Address[]>;
+  createAddress(address: InsertAddress): Promise<Address>;
+  updateAddress(id: string, address: Partial<Address>, userId: string): Promise<Address | undefined>;
+  deleteAddress(id: string, userId: string): Promise<boolean>;
+  setDefaultAddress(addressId: string, userId: string): Promise<boolean>;
+  
+  // Orders
+  getOrder(id: string): Promise<Order | undefined>;
+  getOrdersByUser(userId: string): Promise<Order[]>;
+  getOrdersBySeller(sellerId: string): Promise<Order[]>;
+  createOrder(order: InsertOrder): Promise<Order>;
+  updateOrderStatus(id: string, status: string, sellerId: string): Promise<Order | undefined>;
+  generateOrderNumber(): string;
+  
+  // Order Items
+  getOrderItems(orderId: string): Promise<OrderItem[]>;
+  getOrderItemsWithProducts(orderId: string): Promise<(OrderItem & { productName: string; productDescription?: string; productImage?: string })[]>;
+  createOrderItem(orderItem: InsertOrderItem): Promise<OrderItem>;
+  
+  // Transactions
+  getTransaction(id: string): Promise<Transaction | undefined>;
+  getTransactionsByUser(userId: string): Promise<Transaction[]>;
+  getTransactionsByUserAndType(userId: string, type: string): Promise<Transaction[]>;
+  createTransaction(transaction: InsertTransaction): Promise<Transaction>;
+  updateTransactionStatus(id: string, status: string): Promise<Transaction | undefined>;
+  getUserBalance(userId: string): Promise<number>;
+  getSuccessfulTransactionsBySellers(sellerIds: string[]): Promise<Transaction[]>;
 }
 
 export class MemStorage implements IStorage {
@@ -104,6 +134,10 @@ export class MemStorage implements IStorage {
   private categories: Map<string, Category>;
   private carts: Map<string, Cart>;
   private cartItems: Map<string, CartItem>;
+  private addresses: Map<string, Address>;
+  private orders: Map<string, Order>;
+  private orderItems: Map<string, OrderItem>;
+  private transactions: Map<string, Transaction>;
 
   constructor() {
     this.users = new Map();
@@ -118,6 +152,10 @@ export class MemStorage implements IStorage {
     this.categories = new Map();
     this.carts = new Map();
     this.cartItems = new Map();
+    this.addresses = new Map();
+    this.orders = new Map();
+    this.orderItems = new Map();
+    this.transactions = new Map();
     
     // Create default admin user
     this.initializeAdminUser();
@@ -922,6 +960,246 @@ export class MemStorage implements IStorage {
     };
 
     this.carts.set(cartId, updatedCart);
+  }
+
+  // Addresses
+  async getAddress(id: string): Promise<Address | undefined> {
+    return this.addresses.get(id);
+  }
+
+  async getAddressesByUser(userId: string): Promise<Address[]> {
+    return Array.from(this.addresses.values()).filter(address => address.userId === userId);
+  }
+
+  async createAddress(insertAddress: InsertAddress): Promise<Address> {
+    const id = randomUUID();
+    
+    // If this is the user's first address, set it as default
+    const userAddresses = await this.getAddressesByUser(insertAddress.userId);
+    const isFirstAddress = userAddresses.length === 0;
+    
+    const address: Address = {
+      ...insertAddress,
+      id,
+      latitude: insertAddress.latitude || null,
+      longitude: insertAddress.longitude || null,
+      postalCode: insertAddress.postalCode || null,
+      isDefault: insertAddress.isDefault || isFirstAddress,
+      createdAt: new Date(),
+      updatedAt: new Date(),
+    };
+    
+    this.addresses.set(id, address);
+    return address;
+  }
+
+  async updateAddress(id: string, updates: Partial<Address>, userId: string): Promise<Address | undefined> {
+    const address = this.addresses.get(id);
+    if (!address || address.userId !== userId) return undefined;
+    
+    const updatedAddress: Address = {
+      ...address,
+      ...updates,
+      updatedAt: new Date(),
+    };
+    
+    this.addresses.set(id, updatedAddress);
+    return updatedAddress;
+  }
+
+  async deleteAddress(id: string, userId: string): Promise<boolean> {
+    const address = this.addresses.get(id);
+    if (!address || address.userId !== userId) return false;
+    
+    return this.addresses.delete(id);
+  }
+
+  async setDefaultAddress(addressId: string, userId: string): Promise<boolean> {
+    const address = this.addresses.get(addressId);
+    if (!address || address.userId !== userId) return false;
+    
+    // Remove default from all user addresses
+    const userAddresses = await this.getAddressesByUser(userId);
+    userAddresses.forEach(addr => {
+      if (addr.isDefault) {
+        const updatedAddr = { ...addr, isDefault: false, updatedAt: new Date() };
+        this.addresses.set(addr.id, updatedAddr);
+      }
+    });
+    
+    // Set new default address
+    const updatedAddress = { ...address, isDefault: true, updatedAt: new Date() };
+    this.addresses.set(addressId, updatedAddress);
+    return true;
+  }
+
+  // Orders
+  async getOrder(id: string): Promise<Order | undefined> {
+    return this.orders.get(id);
+  }
+
+  async getOrdersByUser(userId: string): Promise<Order[]> {
+    return Array.from(this.orders.values())
+      .filter(order => order.userId === userId)
+      .sort((a, b) => (b.createdAt?.getTime() || 0) - (a.createdAt?.getTime() || 0));
+  }
+
+  async getOrdersBySeller(sellerId: string): Promise<Order[]> {
+    return Array.from(this.orders.values())
+      .filter(order => order.sellerId === sellerId)
+      .sort((a, b) => (b.createdAt?.getTime() || 0) - (a.createdAt?.getTime() || 0));
+  }
+
+  async createOrder(insertOrder: InsertOrder): Promise<Order> {
+    const id = randomUUID();
+    const orderNumber = this.generateOrderNumber();
+    
+    const order: Order = {
+      ...insertOrder,
+      id,
+      orderNumber,
+      addressId: insertOrder.addressId || null,
+      status: "pending",
+      statusHistory: ["pending"],
+      notes: insertOrder.notes || null,
+      createdAt: new Date(),
+      updatedAt: new Date(),
+    };
+    
+    this.orders.set(id, order);
+    return order;
+  }
+
+  async updateOrderStatus(id: string, status: string, sellerId: string): Promise<Order | undefined> {
+    const order = this.orders.get(id);
+    if (!order || order.sellerId !== sellerId) return undefined;
+    
+    const statusHistory = [...(order.statusHistory || []), status];
+    
+    const updatedOrder: Order = {
+      ...order,
+      status,
+      statusHistory,
+      updatedAt: new Date(),
+    };
+    
+    this.orders.set(id, updatedOrder);
+    return updatedOrder;
+  }
+
+  generateOrderNumber(): string {
+    const timestamp = Date.now();
+    const random = Math.floor(Math.random() * 1000).toString().padStart(3, '0');
+    return `ORD-${timestamp}-${random}`;
+  }
+
+  // Order Items
+  async getOrderItems(orderId: string): Promise<OrderItem[]> {
+    return Array.from(this.orderItems.values()).filter(item => item.orderId === orderId);
+  }
+
+  async getOrderItemsWithProducts(orderId: string): Promise<(OrderItem & { productName: string; productDescription?: string; productImage?: string })[]> {
+    const orderItems = await this.getOrderItems(orderId);
+    return orderItems.map(item => {
+      const product = this.products.get(item.productId);
+      return {
+        ...item,
+        productName: product?.name || 'محصول حذف شده',
+        productDescription: product?.description || undefined,
+        productImage: product?.image || undefined,
+      };
+    });
+  }
+
+  async createOrderItem(insertOrderItem: InsertOrderItem): Promise<OrderItem> {
+    const id = randomUUID();
+    
+    const orderItem: OrderItem = {
+      ...insertOrderItem,
+      id,
+      createdAt: new Date(),
+    };
+    
+    this.orderItems.set(id, orderItem);
+    return orderItem;
+  }
+
+  // Transactions
+  async getTransaction(id: string): Promise<Transaction | undefined> {
+    return this.transactions.get(id);
+  }
+
+  async getTransactionsByUser(userId: string): Promise<Transaction[]> {
+    return Array.from(this.transactions.values())
+      .filter(transaction => transaction.userId === userId)
+      .sort((a, b) => (b.createdAt?.getTime() || 0) - (a.createdAt?.getTime() || 0));
+  }
+
+  async getTransactionsByUserAndType(userId: string, type: string): Promise<Transaction[]> {
+    return Array.from(this.transactions.values())
+      .filter(transaction => transaction.userId === userId && transaction.type === type)
+      .sort((a, b) => (b.createdAt?.getTime() || 0) - (a.createdAt?.getTime() || 0));
+  }
+
+  async createTransaction(insertTransaction: InsertTransaction): Promise<Transaction> {
+    const id = randomUUID();
+    
+    const transaction: Transaction = {
+      ...insertTransaction,
+      id,
+      orderId: insertTransaction.orderId || null,
+      status: insertTransaction.status || "pending",
+      paymentMethod: insertTransaction.paymentMethod || null,
+      referenceId: insertTransaction.referenceId || null,
+      createdAt: new Date(),
+    };
+    
+    this.transactions.set(id, transaction);
+    return transaction;
+  }
+
+  async updateTransactionStatus(id: string, status: string): Promise<Transaction | undefined> {
+    const transaction = this.transactions.get(id);
+    if (!transaction) return undefined;
+    
+    const updatedTransaction: Transaction = {
+      ...transaction,
+      status,
+    };
+    
+    this.transactions.set(id, updatedTransaction);
+    return updatedTransaction;
+  }
+
+  async getUserBalance(userId: string): Promise<number> {
+    const transactions = await this.getTransactionsByUser(userId);
+    const completedTransactions = transactions.filter(t => t.status === 'completed');
+    
+    let balance = 0;
+    completedTransactions.forEach(transaction => {
+      const amount = parseFloat(transaction.amount);
+      if (transaction.type === 'deposit') {
+        balance += amount;
+      } else if (transaction.type === 'withdraw' || transaction.type === 'order_payment') {
+        balance -= amount;
+      }
+    });
+    
+    return Math.max(balance, 0);
+  }
+
+  async getSuccessfulTransactionsBySellers(sellerIds: string[]): Promise<Transaction[]> {
+    return Array.from(this.transactions.values())
+      .filter(transaction => 
+        transaction.status === 'completed' && 
+        transaction.type === 'order_payment' &&
+        transaction.orderId
+      )
+      .filter(transaction => {
+        const order = this.orders.get(transaction.orderId!);
+        return order && sellerIds.includes(order.sellerId);
+      })
+      .sort((a, b) => (b.createdAt?.getTime() || 0) - (a.createdAt?.getTime() || 0));
   }
 }
 

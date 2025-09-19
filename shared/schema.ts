@@ -152,6 +152,56 @@ export const cartItems = pgTable("cart_items", {
   updatedAt: timestamp("updated_at").defaultNow(),
 });
 
+export const addresses = pgTable("addresses", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  userId: varchar("user_id").notNull().references(() => users.id),
+  title: text("title").notNull(), // عنوان آدرس مثل "منزل" یا "محل کار"
+  fullAddress: text("full_address").notNull(), // آدرس کامل متنی
+  latitude: decimal("latitude", { precision: 10, scale: 7 }), // عرض جغرافیایی
+  longitude: decimal("longitude", { precision: 10, scale: 7 }), // طول جغرافیایی
+  postalCode: text("postal_code"),
+  isDefault: boolean("is_default").notNull().default(false),
+  createdAt: timestamp("created_at").defaultNow(),
+  updatedAt: timestamp("updated_at").defaultNow(),
+});
+
+export const orders = pgTable("orders", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  userId: varchar("user_id").notNull().references(() => users.id), // کاربر سطح 2 که سفارش داده
+  sellerId: varchar("seller_id").notNull().references(() => users.id), // کاربر سطح 1 که فروشنده است
+  addressId: varchar("address_id").references(() => addresses.id), // آدرس تحویل
+  totalAmount: decimal("total_amount", { precision: 10, scale: 2 }).notNull(),
+  status: text("status").notNull().default("pending"), // pending, preparing, shipped, delivered, cancelled
+  statusHistory: text("status_history").array().default([]), // تاریخچه تغییر وضعیت
+  orderNumber: text("order_number").notNull().unique(), // شماره سفارش منحصر به فرد
+  notes: text("notes"), // یادداشت‌های کاربر
+  createdAt: timestamp("created_at").defaultNow(),
+  updatedAt: timestamp("updated_at").defaultNow(),
+});
+
+export const orderItems = pgTable("order_items", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  orderId: varchar("order_id").notNull().references(() => orders.id),
+  productId: varchar("product_id").notNull().references(() => products.id),
+  quantity: integer("quantity").notNull(),
+  unitPrice: decimal("unit_price", { precision: 10, scale: 2 }).notNull(),
+  totalPrice: decimal("total_price", { precision: 10, scale: 2 }).notNull(),
+  createdAt: timestamp("created_at").defaultNow(),
+});
+
+export const transactions = pgTable("transactions", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  userId: varchar("user_id").notNull().references(() => users.id),
+  orderId: varchar("order_id").references(() => orders.id), // اختیاری - ممکن است واریز مستقل باشد
+  type: text("type").notNull(), // deposit, withdraw, order_payment, commission
+  amount: decimal("amount", { precision: 10, scale: 2 }).notNull(),
+  status: text("status").notNull().default("pending"), // pending, completed, failed
+  description: text("description").notNull(),
+  paymentMethod: text("payment_method"), // cash, card, bank_transfer, etc.
+  referenceId: text("reference_id"), // شماره پیگیری
+  createdAt: timestamp("created_at").defaultNow(),
+});
+
 // Insert schemas
 export const insertUserSchema = createInsertSchema(users).omit({
   id: true,
@@ -239,6 +289,43 @@ export const insertCartItemSchema = createInsertSchema(cartItems).omit({
   totalPrice: z.union([z.string(), z.number()]).transform(val => String(val)),
 });
 
+export const insertAddressSchema = createInsertSchema(addresses).omit({
+  id: true,
+  createdAt: true,
+  updatedAt: true,
+});
+
+export const updateAddressSchema = createInsertSchema(addresses).omit({
+  id: true,
+  userId: true, // منع تغییر مالکیت
+  createdAt: true,
+  updatedAt: true,
+}).partial();
+
+export const insertOrderSchema = createInsertSchema(orders).omit({
+  id: true,
+  createdAt: true,
+  updatedAt: true,
+  orderNumber: true, // Server generates this
+}).extend({
+  totalAmount: z.union([z.string(), z.number()]).transform(val => String(val)),
+});
+
+export const insertOrderItemSchema = createInsertSchema(orderItems).omit({
+  id: true,
+  createdAt: true,
+}).extend({
+  unitPrice: z.union([z.string(), z.number()]).transform(val => String(val)),
+  totalPrice: z.union([z.string(), z.number()]).transform(val => String(val)),
+});
+
+export const insertTransactionSchema = createInsertSchema(transactions).omit({
+  id: true,
+  createdAt: true,
+}).extend({
+  amount: z.union([z.string(), z.number()]).transform(val => String(val)),
+});
+
 export const updateCategoryOrderSchema = z.object({
   categoryId: z.string().uuid(),
   newOrder: z.number().int().min(0),
@@ -291,3 +378,15 @@ export type InsertCart = z.infer<typeof insertCartSchema>;
 
 export type CartItem = typeof cartItems.$inferSelect;
 export type InsertCartItem = z.infer<typeof insertCartItemSchema>;
+
+export type Address = typeof addresses.$inferSelect;
+export type InsertAddress = z.infer<typeof insertAddressSchema>;
+
+export type Order = typeof orders.$inferSelect;
+export type InsertOrder = z.infer<typeof insertOrderSchema>;
+
+export type OrderItem = typeof orderItems.$inferSelect;
+export type InsertOrderItem = z.infer<typeof insertOrderItemSchema>;
+
+export type Transaction = typeof transactions.$inferSelect;
+export type InsertTransaction = z.infer<typeof insertTransactionSchema>;
