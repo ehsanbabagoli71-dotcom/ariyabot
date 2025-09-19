@@ -508,9 +508,40 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
       const validatedData = insertSubUserSchema.parse(req.body);
       
+      // Generate username from phone number using the specified algorithm
+      // Algorithm: Remove "98" prefix from phone number, then add "0" at the beginning
+      const generateUsernameFromPhone = (phone: string): string => {
+        if (!phone) throw new Error("شماره تلفن الزامی است");
+        
+        // Remove all spaces and non-digit characters, then normalize Persian/Arabic digits to English
+        let cleanPhone = phone
+          .replace(/\s+/g, '') // Remove spaces
+          .replace(/[۰-۹]/g, (d) => '۰۱۲۳۴۵۶۷۸۹'.indexOf(d).toString()) // Persian digits
+          .replace(/[٠-٩]/g, (d) => '٠١٢٣٤٥٦٧٨٩'.indexOf(d).toString()) // Arabic digits
+          .replace(/[^0-9]/g, ''); // Remove all non-digit characters
+        
+        // Handle different phone number formats
+        if (cleanPhone.startsWith('+98')) {
+          cleanPhone = cleanPhone.slice(3);
+        } else if (cleanPhone.startsWith('0098')) {
+          cleanPhone = cleanPhone.slice(4);
+        } else if (cleanPhone.startsWith('98') && cleanPhone.length > 10) {
+          cleanPhone = cleanPhone.slice(2);
+        } else if (cleanPhone.startsWith('0')) {
+          // Already in local format (0912...), keep as is
+          return cleanPhone;
+        }
+        
+        // Add "0" at the beginning for international numbers converted to local format
+        return '0' + cleanPhone;
+      };
+
+      const generatedUsername = generateUsernameFromPhone(validatedData.phone);
+      
       // Force role to be user_level_2 and set parent
       const subUserData = {
         ...validatedData,
+        username: generatedUsername, // Use generated username instead of manual input
         role: "user_level_2",
         parentUserId: req.user.id,
       };
@@ -523,9 +554,9 @@ export async function registerRoutes(app: Express): Promise<Server> {
         }
       }
 
-      const existingUsernameUser = await storage.getUserByUsername(subUserData.username!);
+      const existingUsernameUser = await storage.getUserByUsername(subUserData.username);
       if (existingUsernameUser) {
-        return res.status(400).json({ message: "کاربری با این نام کاربری قبلاً ثبت نام کرده است" });
+        return res.status(400).json({ message: "کاربری با این شماره تلفن قبلاً ثبت نام کرده است" });
       }
 
       // Hash password
@@ -663,12 +694,11 @@ export async function registerRoutes(app: Express): Promise<Server> {
         return res.status(404).json({ message: "زیرمجموعه یافت نشد یا متعلق به شما نیست" });
       }
 
-      // Generate random password
+      // Generate 7-digit random password (numbers only)
       const generateRandomPassword = () => {
-        const chars = 'abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789';
         let password = '';
-        for (let i = 0; i < 8; i++) {
-          password += chars.charAt(Math.floor(Math.random() * chars.length));
+        for (let i = 0; i < 7; i++) {
+          password += Math.floor(Math.random() * 10).toString();
         }
         return password;
       };

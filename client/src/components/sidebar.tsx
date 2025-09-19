@@ -77,7 +77,7 @@ export function Sidebar() {
             <Store className="text-primary-foreground" />
           </div>
           <h2 className="mr-3 text-lg font-bold text-foreground">
-            {user?.role === "admin" ? "پنل مدیریت" : "پنل کاربری"}
+            ربات آریا بات
           </h2>
         </div>
       </div>

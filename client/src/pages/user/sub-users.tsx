@@ -24,7 +24,7 @@ interface UserWithSubscription extends UserType {
   } | null;
 }
 
-// Form schema for creating sub-users (level 2)
+// Form schema for creating sub-users (level 2) - username is auto-generated from phone
 const createSubUserSchema = insertSubUserSchema.extend({
   password: z.string().min(6, "رمز عبور باید حداقل ۶ کاراکتر باشد"),
 });
@@ -37,7 +37,6 @@ export default function SubUserManagement() {
   const [isResetPasswordDialogOpen, setIsResetPasswordDialogOpen] = useState(false);
   const [resetPasswordUser, setResetPasswordUser] = useState<UserWithSubscription | null>(null);
   const [formData, setFormData] = useState({
-    username: "",
     firstName: "",
     lastName: "",
     phone: "",
@@ -71,7 +70,6 @@ export default function SubUserManagement() {
       queryClient.invalidateQueries({ queryKey: ["/api/sub-users"] });
       setIsCreateDialogOpen(false);
       setFormData({
-        username: "",
         firstName: "",
         lastName: "",
         phone: "",
@@ -286,15 +284,8 @@ export default function SubUserManagement() {
                 <DialogTitle>افزودن زیرمجموعه جدید</DialogTitle>
               </DialogHeader>
               <div className="space-y-4">
-                <div>
-                  <Label htmlFor="username">نام کاربری</Label>
-                  <Input
-                    id="username"
-                    data-testid="input-create-username"
-                    value={formData.username}
-                    onChange={(e) => setFormData({ ...formData, username: e.target.value })}
-                    placeholder="نام کاربری منحصر به فرد"
-                  />
+                <div className="text-sm text-muted-foreground bg-blue-50 dark:bg-blue-900/20 p-3 rounded border border-blue-200 dark:border-blue-800">
+                  💡 نام کاربری به صورت خودکار از شماره تلفن تولید می‌شود
                 </div>
                 <div>
                   <Label htmlFor="firstName">نام</Label>

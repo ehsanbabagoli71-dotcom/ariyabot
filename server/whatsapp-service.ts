@@ -391,8 +391,32 @@ class WhatsAppMessageService {
       // پیام شامل نام و نام خانوادگی است - ثبت نام کن
       console.log(`🔄 ثبت نام خودکار کاربر جدید از واتس‌اپ: ${whatsappNumber}`);
       
-      // تولید نام کاربری یکتا بر اساس شماره تلفن
-      const username = `whatsapp_${whatsappNumber.replace('+', '').slice(-8)}`;
+      // تولید نام کاربری یکتا بر اساس شماره تلفن با الگوریتم جدید
+      const generateUsernameFromPhone = (phone: string): string => {
+        if (!phone) return phone;
+        
+        // Remove all spaces and non-digit characters, then normalize Persian/Arabic digits to English
+        let cleanPhone = phone
+          .replace(/\s+/g, '') // Remove spaces
+          .replace(/[۰-۹]/g, (d) => '۰۱۲۳۴۵۶۷۸۹'.indexOf(d).toString()) // Persian digits
+          .replace(/[٠-٩]/g, (d) => '٠١٢٣٤٥٦٧٨٩'.indexOf(d).toString()) // Arabic digits
+          .replace(/[^0-9]/g, ''); // Remove all non-digit characters
+        
+        // Handle different phone number formats
+        if (cleanPhone.startsWith('0098')) {
+          cleanPhone = cleanPhone.slice(4);
+        } else if (cleanPhone.startsWith('98') && cleanPhone.length > 10) {
+          cleanPhone = cleanPhone.slice(2);
+        } else if (cleanPhone.startsWith('0')) {
+          // Already in local format (0912...), keep as is
+          return cleanPhone;
+        }
+        
+        // Add "0" at the beginning for international numbers converted to local format
+        return '0' + cleanPhone;
+      };
+      
+      const username = generateUsernameFromPhone(whatsappNumber);
 
       // ایجاد کاربر جدید با نام و نام خانوادگی دریافت شده (بدون ایمیل)
       const newUser = await storage.createUser({
