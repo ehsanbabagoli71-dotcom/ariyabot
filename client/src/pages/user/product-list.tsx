@@ -10,9 +10,11 @@ import { Switch } from "@/components/ui/switch";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
-import { Plus, Search, Edit, Trash2, ChevronUp, ChevronDown, ChevronsUpDown, CloudUpload, Package, DollarSign, Hash, FileText, FolderTree } from "lucide-react";
+import { Plus, Search, Edit, Trash2, ChevronUp, ChevronDown, ChevronsUpDown, CloudUpload, Package, DollarSign, Hash, FileText, FolderTree, ShoppingCart } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
+import { useAuth } from "@/hooks/use-auth";
 import { createAuthenticatedRequest, getAuthHeaders } from "@/lib/auth";
+import { apiRequest } from "@/lib/queryClient";
 import type { Product, Category } from "@shared/schema";
 
 export default function ProductList() {
@@ -33,6 +35,8 @@ export default function ProductList() {
   const [editImagePreview, setEditImagePreview] = useState<string>("");
   const { toast } = useToast();
   const queryClient = useQueryClient();
+  const { user } = useAuth();
+  const isLevel2User = user?.role === "user_level_2";
 
   const { data: products = [], isLoading } = useQuery<Product[]>({
     queryKey: ["/api/products"],
@@ -141,6 +145,32 @@ export default function ProductList() {
       toast({
         title: "خطا",
         description: error.message || "خطا در ویرایش محصول",
+        variant: "destructive",
+      });
+    },
+  });
+
+  // Add to cart mutation for user_level_2
+  const addToCartMutation = useMutation({
+    mutationFn: async ({ productId, quantity = 1 }: { productId: string; quantity?: number }) => {
+      const res = await apiRequest("POST", "/api/cart/add", { productId, quantity });
+      if (!res.ok) {
+        const errorData = await res.json().catch(() => ({ message: "خطا در اضافه کردن به سبد خرید" }));
+        throw new Error(errorData.message || "خطا در اضافه کردن به سبد خرید");
+      }
+      return res.json();
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["/api/cart"] });
+      toast({
+        title: "موفقیت",
+        description: "محصول به سبد خرید اضافه شد",
+      });
+    },
+    onError: (error: any) => {
+      toast({
+        title: "خطا",
+        description: error.message || "خطا در اضافه کردن به سبد خرید",
         variant: "destructive",
       });
     },
@@ -323,15 +353,21 @@ export default function ProductList() {
       <div className="space-y-6" data-testid="page-product-list">
         <div className="flex items-center justify-between">
           <div>
-            <h2 className="text-2xl font-bold text-foreground">لیست محصولات</h2>
-            <p className="text-muted-foreground">مدیریت محصولات اضافه شده توسط شما</p>
+            <h2 className="text-2xl font-bold text-foreground">
+              {isLevel2User ? "فروشگاه محصولات" : "لیست محصولات"}
+            </h2>
+            <p className="text-muted-foreground">
+              {isLevel2User ? "مشاهده و خرید محصولات موجود" : "مدیریت محصولات اضافه شده توسط شما"}
+            </p>
           </div>
-          <Link href="/add-product">
-            <Button data-testid="button-add-product">
-              <Plus className="w-4 h-4 ml-2" />
-              افزودن محصول
-            </Button>
-          </Link>
+          {!isLevel2User && (
+            <Link href="/add-product">
+              <Button data-testid="button-add-product">
+                <Plus className="w-4 h-4 ml-2" />
+                افزودن محصول
+              </Button>
+            </Link>
+          )}
         </div>
 
         {/* Search and Filters */}
@@ -446,24 +482,42 @@ export default function ProductList() {
                         </TableCell>
                         <TableCell>
                           <div className="flex items-center space-x-2 space-x-reverse">
-                            <Button
-                              variant="ghost"
-                              size="sm"
-                              onClick={() => handleEditProduct(product)}
-                              className="text-primary hover:text-primary/80"
-                              data-testid={`button-edit-product-${product.id}`}
-                            >
-                              <Edit className="h-4 w-4" />
-                            </Button>
-                            <Button
-                              variant="ghost"
-                              size="sm"
-                              onClick={() => handleDelete(product.id)}
-                              className="text-destructive hover:text-destructive/80"
-                              data-testid={`button-delete-product-${product.id}`}
-                            >
-                              <Trash2 className="h-4 w-4" />
-                            </Button>
+                            {isLevel2User ? (
+                              // Add to cart button for user_level_2
+                              <Button
+                                variant="default"
+                                size="sm"
+                                onClick={() => addToCartMutation.mutate({ productId: product.id, quantity: 1 })}
+                                disabled={addToCartMutation.isPending || !product.isActive || product.quantity <= 0}
+                                className="text-white"
+                                data-testid={`button-add-to-cart-${product.id}`}
+                              >
+                                <ShoppingCart className="h-4 w-4 ml-1" />
+                                {addToCartMutation.isPending ? "در حال اضافه..." : "افزودن به سبد"}
+                              </Button>
+                            ) : (
+                              // Edit and delete buttons for admin and user_level_1
+                              <>
+                                <Button
+                                  variant="ghost"
+                                  size="sm"
+                                  onClick={() => handleEditProduct(product)}
+                                  className="text-primary hover:text-primary/80"
+                                  data-testid={`button-edit-product-${product.id}`}
+                                >
+                                  <Edit className="h-4 w-4" />
+                                </Button>
+                                <Button
+                                  variant="ghost"
+                                  size="sm"
+                                  onClick={() => handleDelete(product.id)}
+                                  className="text-destructive hover:text-destructive/80"
+                                  data-testid={`button-delete-product-${product.id}`}
+                                >
+                                  <Trash2 className="h-4 w-4" />
+                                </Button>
+                              </>
+                            )}
                           </div>
                         </TableCell>
                       </TableRow>

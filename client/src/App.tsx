@@ -23,6 +23,7 @@ import ProductList from "@/pages/user/product-list";
 import Reports from "@/pages/user/reports";
 import SubUsers from "@/pages/user/sub-users";
 import WelcomeMessage from "@/pages/admin/welcome-message";
+import Cart from "@/pages/cart";
 import NotFound from "@/pages/not-found";
 
 function ProtectedRoute({ component: Component }: { component: React.ComponentType }) {
@@ -107,6 +108,28 @@ function Level1Route({ component: Component }: { component: React.ComponentType 
   return <Component />;
 }
 
+function Level2Route({ component: Component }: { component: React.ComponentType }) {
+  const { user, isLoading } = useAuth();
+  
+  if (isLoading) {
+    return <div className="min-h-screen flex items-center justify-center">
+      <div className="text-lg">در حال بارگذاری...</div>
+    </div>;
+  }
+  
+  if (!user) {
+    return <Login />;
+  }
+  
+  if (user.role !== "user_level_2") {
+    return <div className="min-h-screen flex items-center justify-center">
+      <div className="text-lg text-destructive">دسترسی محدود - این صفحه مخصوص کاربران سطح ۲ است</div>
+    </div>;
+  }
+  
+  return <Component />;
+}
+
 function Router() {
   const { user } = useAuth();
   
@@ -134,6 +157,7 @@ function Router() {
       <Route path="/add-product" component={() => <ProtectedRoute component={AddProduct} />} />
       <Route path="/products" component={() => <ProtectedRoute component={ProductList} />} />
       <Route path="/sub-users" component={() => <Level1Route component={SubUsers} />} />
+      <Route path="/cart" component={() => <Level2Route component={Cart} />} />
       <Route component={NotFound} />
     </Switch>
   );
