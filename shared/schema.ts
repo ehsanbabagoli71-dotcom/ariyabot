@@ -214,6 +214,11 @@ export const ticketReplySchema = z.object({
   message: z.string().min(1, "پیام نمی‌تواند خالی باشد").max(1000, "پیام نمی‌تواند بیش از 1000 کاراکتر باشد"),
 });
 
+// Reset password validation schema
+export const resetPasswordSchema = z.object({
+  password: z.string().min(6, "رمز عبور باید حداقل ۶ کاراکتر باشد"),
+});
+
 // Types
 export type User = typeof users.$inferSelect;
 export type InsertUser = z.infer<typeof insertUserSchema>;

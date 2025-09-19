@@ -8,6 +8,16 @@ Preferred communication style: Simple, everyday language.
 
 # Recent Changes
 
+- **Project successfully imported to Replit environment and fully configured (2025-09-17)**
+  - PostgreSQL database created and schema successfully applied with drizzle-kit push
+  - Workflow configured for frontend on port 5000 with webview output type
+  - Frontend properly configured with allowedHosts: true for Replit proxy compatibility
+  - Production deployment configuration set up for autoscale deployment
+  - Application fully operational with Express server running on port 5000
+  - Vite development server integrated with Express backend for seamless development
+  - Admin user automatically created (username: ehsan, password: admin123)
+  - All dependencies installed and working correctly
+  - Security warnings noted: JWT_SECRET and ADMIN_PASSWORD should be set via environment variables before production deployment
 - **حذف منطق ایمیل اجباری برای کاربران سطح 2 کاملاً پیاده‌سازی شد (2025-09-17)**
   - فیلد ایمیل از فرم ایجاد کاربر سطح 2 در frontend حذف شد
   - ستون ایمیل از جدول نمایش زیرکاربران حذف شد
