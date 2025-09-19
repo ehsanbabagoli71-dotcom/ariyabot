@@ -2,6 +2,15 @@
 
 This is a modern Persian e-commerce and support web application built with a full-stack TypeScript architecture. The application provides user management, a ticketing system, inventory management, and subscription services with role-based access control. All user-facing content is displayed in Persian (Farsi) while maintaining a modern, responsive design. The project aims to provide a comprehensive and intuitive platform for online business operations in the Persian market.
 
+# Recent Changes
+
+## September 19, 2025
+- **Auto-sliding Product Carousel**: Implemented smooth auto-scrolling for best-selling products in user dashboard using useRef, useEffect, and useMemo with 3-second intervals
+- **Sidebar Menu Restructuring**: Removed "my services" submenu and moved addresses, orders, and financial sections directly to main menu for user_level_2
+- **UI/UX Improvements**: Hidden inventory section from user_level_2 navigation and moved tickets section to bottom of menu
+- **Orders Enhancement**: Re-added payment button to orders page in operations section for pending/confirmed orders
+- **Address Selection System**: Implemented comprehensive address selection in shopping cart with ability to add new addresses, including validation and API integration
+
 # User Preferences
 
 Preferred communication style: Simple, everyday language.
