@@ -36,9 +36,6 @@ export default function SubUserManagement() {
   const [isCreateDialogOpen, setIsCreateDialogOpen] = useState(false);
   const [isResetPasswordDialogOpen, setIsResetPasswordDialogOpen] = useState(false);
   const [resetPasswordUser, setResetPasswordUser] = useState<UserWithSubscription | null>(null);
-  const [newPassword, setNewPassword] = useState("");
-  const [visiblePasswords, setVisiblePasswords] = useState<Record<string, boolean>>({});
-  const [tempPasswords, setTempPasswords] = useState<Record<string, string>>({});
   const [formData, setFormData] = useState({
     username: "",
     firstName: "",
@@ -72,13 +69,6 @@ export default function SubUserManagement() {
     },
     onSuccess: (result) => {
       queryClient.invalidateQueries({ queryKey: ["/api/sub-users"] });
-      // ذخیره رمز عبور موقت برای نمایش
-      if (result.user?.id && formData.password) {
-        setTempPasswords(prev => ({
-          ...prev,
-          [result.user.id]: formData.password
-        }));
-      }
       setIsCreateDialogOpen(false);
       setFormData({
         username: "",
@@ -159,10 +149,9 @@ export default function SubUserManagement() {
   });
 
   const resetPasswordMutation = useMutation({
-    mutationFn: async ({ id, password }: { id: string; password: string }) => {
+    mutationFn: async (id: string) => {
       const response = await createAuthenticatedRequest(`/api/sub-users/${id}/reset-password`, {
         method: "POST",
-        body: JSON.stringify({ password }),
       });
       if (!response.ok) {
         const errorData = await response.json();
@@ -170,20 +159,12 @@ export default function SubUserManagement() {
       }
       return response.json();
     },
-    onSuccess: (result, variables) => {
-      // ذخیره رمز عبور موقت برای نمایش
-      if (result.temporaryPassword) {
-        setTempPasswords(prev => ({
-          ...prev,
-          [variables.id]: result.temporaryPassword
-        }));
-      }
+    onSuccess: (result) => {
       setIsResetPasswordDialogOpen(false);
       setResetPasswordUser(null);
-      setNewPassword("");
       toast({
         title: "موفقیت",
-        description: "رمز عبور با موفقیت بازنشانی شد",
+        description: "رمز عبور جدید تولید و برای کاربر ارسال شد",
       });
     },
     onError: (error: Error) => {
@@ -276,19 +257,10 @@ export default function SubUserManagement() {
   };
 
   const handleSubmitResetPassword = () => {
-    if (!resetPasswordUser || !newPassword) return;
-    resetPasswordMutation.mutate({
-      id: resetPasswordUser.id,
-      password: newPassword
-    });
+    if (!resetPasswordUser) return;
+    resetPasswordMutation.mutate(resetPasswordUser.id);
   };
 
-  const togglePasswordVisibility = (userId: string) => {
-    setVisiblePasswords(prev => ({
-      ...prev,
-      [userId]: !prev[userId]
-    }));
-  };
 
   return (
     <DashboardLayout title="مدیریت زیرمجموعه‌ها">
@@ -398,20 +370,19 @@ export default function SubUserManagement() {
                 <TableHead className="text-right">تلفن</TableHead>
                 <TableHead className="text-right">اشتراک</TableHead>
                 <TableHead className="text-right">روزهای باقیمانده</TableHead>
-                <TableHead className="text-right">رمز عبور</TableHead>
                 <TableHead className="text-right">عملیات</TableHead>
               </TableRow>
             </TableHeader>
             <TableBody>
               {isLoading ? (
                 <TableRow>
-                  <TableCell colSpan={7} className="text-center py-8">
+                  <TableCell colSpan={6} className="text-center py-8">
                     در حال بارگذاری...
                   </TableCell>
                 </TableRow>
               ) : filteredSubUsers.length === 0 ? (
                 <TableRow>
-                  <TableCell colSpan={7} className="text-center py-8">
+                  <TableCell colSpan={6} className="text-center py-8">
                     {search ? "هیچ زیرمجموعه‌ای یافت نشد" : "هنوز زیرمجموعه‌ای ایجاد نشده است"}
                   </TableCell>
                 </TableRow>
@@ -456,27 +427,6 @@ export default function SubUserManagement() {
                       ) : (
                         <span className="text-muted-foreground text-sm">-</span>
                       )}
-                    </TableCell>
-                    <TableCell>
-                      <div className="flex items-center gap-2">
-                        {tempPasswords[user.id] ? (
-                          <>
-                            <span className="text-sm font-mono" data-testid={`text-password-${user.id}`}>
-                              {visiblePasswords[user.id] ? tempPasswords[user.id] : '••••••••'}
-                            </span>
-                            <Button
-                              size="sm"
-                              variant="ghost"
-                              onClick={() => togglePasswordVisibility(user.id)}
-                              data-testid={`button-toggle-password-${user.id}`}
-                            >
-                              {visiblePasswords[user.id] ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
-                            </Button>
-                          </>
-                        ) : (
-                          <span className="text-muted-foreground text-sm">••••••••</span>
-                        )}
-                      </div>
                     </TableCell>
                     <TableCell>
                       <div className="flex gap-2">
@@ -571,27 +521,29 @@ export default function SubUserManagement() {
             {resetPasswordUser && (
               <div className="space-y-4">
                 <div className="text-sm text-muted-foreground">
-                  رمز عبور جدید برای <span className="font-medium">{resetPasswordUser.firstName} {resetPasswordUser.lastName}</span>
+                  آیا می‌خواهید رمز عبور جدیدی برای <span className="font-medium">{resetPasswordUser.firstName} {resetPasswordUser.lastName}</span> تولید و ارسال شود؟
                 </div>
-                <div>
-                  <Label htmlFor="new-password">رمز عبور جدید</Label>
-                  <Input
-                    id="new-password"
-                    type="password"
-                    value={newPassword}
-                    onChange={(e) => setNewPassword(e.target.value)}
-                    placeholder="حداقل ۶ کاراکتر"
-                    data-testid="input-reset-password"
-                  />
+                <div className="text-xs text-muted-foreground bg-muted p-3 rounded">
+                  رمز عبور جدید به صورت خودکار تولید و از طریق واتس‌اپ برای کاربر ارسال خواهد شد.
                 </div>
-                <Button 
-                  onClick={handleSubmitResetPassword} 
-                  className="w-full"
-                  disabled={resetPasswordMutation.isPending || newPassword.length < 6}
-                  data-testid="button-submit-reset-password"
-                >
-                  {resetPasswordMutation.isPending ? "در حال بازنشانی..." : "بازنشانی رمز عبور"}
-                </Button>
+                <div className="flex gap-2">
+                  <Button 
+                    onClick={handleSubmitResetPassword} 
+                    className="flex-1"
+                    disabled={resetPasswordMutation.isPending}
+                    data-testid="button-submit-reset-password"
+                  >
+                    {resetPasswordMutation.isPending ? "در حال تولید..." : "تایید و ارسال"}
+                  </Button>
+                  <Button 
+                    variant="outline"
+                    onClick={() => setIsResetPasswordDialogOpen(false)}
+                    className="flex-1"
+                    disabled={resetPasswordMutation.isPending}
+                  >
+                    انصراف
+                  </Button>
+                </div>
               </div>
             )}
           </DialogContent>

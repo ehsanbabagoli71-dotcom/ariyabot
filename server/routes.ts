@@ -663,12 +663,20 @@ export async function registerRoutes(app: Express): Promise<Server> {
         return res.status(404).json({ message: "زیرمجموعه یافت نشد یا متعلق به شما نیست" });
       }
 
-      // Validate the new password
-      const { resetPasswordSchema } = await import("@shared/schema");
-      const validatedData = resetPasswordSchema.parse(req.body);
+      // Generate random password
+      const generateRandomPassword = () => {
+        const chars = 'abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789';
+        let password = '';
+        for (let i = 0; i < 8; i++) {
+          password += chars.charAt(Math.floor(Math.random() * chars.length));
+        }
+        return password;
+      };
+
+      const newPassword = generateRandomPassword();
       
       // Hash the new password
-      const hashedPassword = await bcrypt.hash(validatedData.password, 10);
+      const hashedPassword = await bcrypt.hash(newPassword, 10);
       
       // Update user password
       const updatedUser = await storage.updateUserPassword(id, hashedPassword);
@@ -676,15 +684,31 @@ export async function registerRoutes(app: Express): Promise<Server> {
         return res.status(500).json({ message: "خطا در بازنشانی رمز عبور" });
       }
 
+      // Send password via WhatsApp if user has phone number
+      let sentViaWhatsApp = false;
+      let whatsappMessage = "";
+      
+      try {
+        const { whatsAppSender } = await import('./whatsapp-sender');
+        if (existingSubUser.phone) {
+          const message = `🔐 رمز عبور جدید شما:\n\n${newPassword}\n\nلطفاً این رمز عبور را در مکان امنی نگهداری کنید و پس از ورود اول آن را تغییر دهید.`;
+          sentViaWhatsApp = await whatsAppSender.sendMessage(existingSubUser.phone, message, req.user.id);
+          whatsappMessage = sentViaWhatsApp ? "رمز عبور از طریق واتس‌اپ ارسال شد" : "ارسال واتس‌اپ ناموفق بود";
+        } else {
+          whatsappMessage = "شماره تلفن کاربر موجود نیست";
+        }
+      } catch (whatsappError) {
+        console.warn("خطا در ارسال رمز عبور از طریق واتس‌اپ:", whatsappError);
+        whatsappMessage = "خطا در ارسال واتس‌اپ";
+      }
+
       res.json({ 
         userId: id, 
-        temporaryPassword: validatedData.password,
-        message: "رمز عبور با موفقیت بازنشانی شد" 
+        message: sentViaWhatsApp ? "رمز عبور جدید تولید و از طریق واتس‌اپ ارسال شد" : `رمز عبور جدید تولید شد - ${whatsappMessage}`,
+        sentViaWhatsApp,
+        whatsappStatus: whatsappMessage
       });
     } catch (error) {
-      if (error instanceof z.ZodError) {
-        return res.status(400).json({ message: "داده های ورودی نامعتبر است", errors: error.errors });
-      }
       console.error("خطا در بازنشانی رمز عبور:", error);
       res.status(500).json({ message: "خطا در بازنشانی رمز عبور" });
     }
