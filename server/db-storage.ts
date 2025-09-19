@@ -139,6 +139,11 @@ export class DbStorage implements IStorage {
     return result[0];
   }
 
+  async updateUserPassword(id: string, hashedPassword: string): Promise<User | undefined> {
+    const result = await db.update(users).set({ password: hashedPassword }).where(eq(users.id, id)).returning();
+    return result[0];
+  }
+
   async deleteUser(id: string): Promise<boolean> {
     const result = await db.delete(users).where(eq(users.id, id));
     return result.rowCount! > 0;

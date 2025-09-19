@@ -12,6 +12,7 @@ export interface IStorage {
   getUserByWhatsappNumber(whatsappNumber: string): Promise<User | undefined>;
   createUser(user: InsertUser): Promise<User>;
   updateUser(id: string, user: Partial<User>): Promise<User | undefined>;
+  updateUserPassword(id: string, hashedPassword: string): Promise<User | undefined>;
   deleteUser(id: string): Promise<boolean>;
   getAllUsers(): Promise<User[]>;
   getSubUsers(parentUserId: string): Promise<User[]>;
@@ -137,6 +138,7 @@ export class MemStorage implements IStorage {
       parentUserId: null,
       profilePicture: null,
       isWhatsappRegistered: false,
+      welcomeMessage: null,
       createdAt: new Date(),
     };
     this.users.set(adminUser.id, adminUser);
@@ -205,6 +207,7 @@ export class MemStorage implements IStorage {
     const user: User = {
       ...insertUser,
       id,
+      email: insertUser.email || null,
       role: insertUser.role || 'user_level_1',
       password: insertUser.password || null,
       googleId: insertUser.googleId || null,
@@ -213,6 +216,7 @@ export class MemStorage implements IStorage {
       whatsappToken: insertUser.whatsappToken || null,
       parentUserId: insertUser.parentUserId || null,
       isWhatsappRegistered: insertUser.isWhatsappRegistered || false,
+      welcomeMessage: insertUser.welcomeMessage || null,
       createdAt: new Date(),
     };
     this.users.set(id, user);
@@ -224,6 +228,15 @@ export class MemStorage implements IStorage {
     if (!user) return undefined;
     
     const updatedUser = { ...user, ...updates };
+    this.users.set(id, updatedUser);
+    return updatedUser;
+  }
+
+  async updateUserPassword(id: string, hashedPassword: string): Promise<User | undefined> {
+    const user = this.users.get(id);
+    if (!user) return undefined;
+    
+    const updatedUser = { ...user, password: hashedPassword };
     this.users.set(id, updatedUser);
     return updatedUser;
   }

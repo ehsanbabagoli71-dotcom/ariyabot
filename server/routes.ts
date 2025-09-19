@@ -647,6 +647,49 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
+  // Reset password endpoint for sub-users
+  app.post("/api/sub-users/:id/reset-password", authenticateToken, async (req: AuthRequest, res) => {
+    try {
+      // Only level 1 users can reset password for their sub-users
+      if (req.user?.role !== "user_level_1") {
+        return res.status(403).json({ message: "فقط کاربران سطح ۱ می‌توانند رمز عبور زیرمجموعه‌ها را بازنشانی کنند" });
+      }
+
+      const { id } = req.params;
+      
+      // Check if the sub-user belongs to this level 1 user
+      const existingSubUser = await storage.getUser(id);
+      if (!existingSubUser || existingSubUser.parentUserId !== req.user.id) {
+        return res.status(404).json({ message: "زیرمجموعه یافت نشد یا متعلق به شما نیست" });
+      }
+
+      // Validate the new password
+      const { resetPasswordSchema } = await import("@shared/schema");
+      const validatedData = resetPasswordSchema.parse(req.body);
+      
+      // Hash the new password
+      const hashedPassword = await bcrypt.hash(validatedData.password, 10);
+      
+      // Update user password
+      const updatedUser = await storage.updateUserPassword(id, hashedPassword);
+      if (!updatedUser) {
+        return res.status(500).json({ message: "خطا در بازنشانی رمز عبور" });
+      }
+
+      res.json({ 
+        userId: id, 
+        temporaryPassword: validatedData.password,
+        message: "رمز عبور با موفقیت بازنشانی شد" 
+      });
+    } catch (error) {
+      if (error instanceof z.ZodError) {
+        return res.status(400).json({ message: "داده های ورودی نامعتبر است", errors: error.errors });
+      }
+      console.error("خطا در بازنشانی رمز عبور:", error);
+      res.status(500).json({ message: "خطا در بازنشانی رمز عبور" });
+    }
+  });
+
   // Profile routes
   app.put("/api/profile", authenticateToken, async (req: AuthRequest, res) => {
     try {

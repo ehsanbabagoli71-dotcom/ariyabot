@@ -7,7 +7,7 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@
 import { Badge } from "@/components/ui/badge";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
 import { Label } from "@/components/ui/label";
-import { Plus, Search, Edit, Trash2, Users } from "lucide-react";
+import { Plus, Search, Edit, Trash2, Users, Eye, EyeOff, RotateCcw } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { createAuthenticatedRequest } from "@/lib/auth";
 import { insertUserSchema, insertSubUserSchema } from "@shared/schema";
@@ -34,6 +34,11 @@ export default function SubUserManagement() {
   const [editingUser, setEditingUser] = useState<UserWithSubscription | null>(null);
   const [isEditDialogOpen, setIsEditDialogOpen] = useState(false);
   const [isCreateDialogOpen, setIsCreateDialogOpen] = useState(false);
+  const [isResetPasswordDialogOpen, setIsResetPasswordDialogOpen] = useState(false);
+  const [resetPasswordUser, setResetPasswordUser] = useState<UserWithSubscription | null>(null);
+  const [newPassword, setNewPassword] = useState("");
+  const [visiblePasswords, setVisiblePasswords] = useState<Record<string, boolean>>({});
+  const [tempPasswords, setTempPasswords] = useState<Record<string, string>>({});
   const [formData, setFormData] = useState({
     username: "",
     firstName: "",
@@ -65,8 +70,15 @@ export default function SubUserManagement() {
       }
       return response.json();
     },
-    onSuccess: () => {
+    onSuccess: (result) => {
       queryClient.invalidateQueries({ queryKey: ["/api/sub-users"] });
+      // ذخیره رمز عبور موقت برای نمایش
+      if (result.user?.id && formData.password) {
+        setTempPasswords(prev => ({
+          ...prev,
+          [result.user.id]: formData.password
+        }));
+      }
       setIsCreateDialogOpen(false);
       setFormData({
         username: "",
@@ -146,7 +158,73 @@ export default function SubUserManagement() {
     },
   });
 
-  const filteredSubUsers = subUsers.filter(user => {
+  const resetPasswordMutation = useMutation({
+    mutationFn: async ({ id, password }: { id: string; password: string }) => {
+      const response = await createAuthenticatedRequest(`/api/sub-users/${id}/reset-password`, {
+        method: "POST",
+        body: JSON.stringify({ password }),
+      });
+      if (!response.ok) {
+        const errorData = await response.json();
+        throw new Error(errorData.message || "خطا در بازنشانی رمز عبور");
+      }
+      return response.json();
+    },
+    onSuccess: (result, variables) => {
+      // ذخیره رمز عبور موقت برای نمایش
+      if (result.temporaryPassword) {
+        setTempPasswords(prev => ({
+          ...prev,
+          [variables.id]: result.temporaryPassword
+        }));
+      }
+      setIsResetPasswordDialogOpen(false);
+      setResetPasswordUser(null);
+      setNewPassword("");
+      toast({
+        title: "موفقیت",
+        description: "رمز عبور با موفقیت بازنشانی شد",
+      });
+    },
+    onError: (error: Error) => {
+      toast({
+        title: "خطا",
+        description: error.message,
+        variant: "destructive",
+      });
+    },
+  });
+
+  // تابع فرمت کردن شماره تلفن
+  const formatPhone = (phone: string) => {
+    if (!phone) return phone;
+    // تبدیل ارقام فارسی و عربی به انگلیسی
+    const normalizedPhone = phone
+      .replace(/[۰-۹]/g, (d) => '۰۱۲۳۴۵۶۷۸۹'.indexOf(d).toString())
+      .replace(/[٠-٩]/g, (d) => '٠١٢٣٤٥٦٧٨٩'.indexOf(d).toString());
+    
+    // حذف فضاهای خالی و کاراکترهای اضافی
+    const cleanPhone = normalizedPhone.replace(/\s+/g, '');
+    
+    // تبدیل +98 یا 0098 یا 98 به 0
+    if (cleanPhone.startsWith('+98')) {
+      return '0' + cleanPhone.slice(3);
+    } else if (cleanPhone.startsWith('0098')) {
+      return '0' + cleanPhone.slice(4);
+    } else if (cleanPhone.startsWith('98') && cleanPhone.length > 10) {
+      return '0' + cleanPhone.slice(2);
+    }
+    return cleanPhone;
+  };
+
+  // سورت کردن کاربران از جدید به قدیم
+  const sortedSubUsers = [...subUsers].sort((a, b) => {
+    const dateA = new Date(a.createdAt || 0).getTime();
+    const dateB = new Date(b.createdAt || 0).getTime();
+    return dateB - dateA; // جدید به قدیم
+  });
+
+  const filteredSubUsers = sortedSubUsers.filter(user => {
     const matchesSearch = user.firstName.toLowerCase().includes(search.toLowerCase()) ||
                          user.lastName.toLowerCase().includes(search.toLowerCase()) ||
                          (user.username && user.username.toLowerCase().includes(search.toLowerCase()));
@@ -190,6 +268,26 @@ export default function SubUserManagement() {
     if (confirm("آیا از حذف این زیرمجموعه اطمینان دارید؟")) {
       deleteSubUserMutation.mutate(id);
     }
+  };
+
+  const handleResetPassword = (user: UserWithSubscription) => {
+    setResetPasswordUser(user);
+    setIsResetPasswordDialogOpen(true);
+  };
+
+  const handleSubmitResetPassword = () => {
+    if (!resetPasswordUser || !newPassword) return;
+    resetPasswordMutation.mutate({
+      id: resetPasswordUser.id,
+      password: newPassword
+    });
+  };
+
+  const togglePasswordVisibility = (userId: string) => {
+    setVisiblePasswords(prev => ({
+      ...prev,
+      [userId]: !prev[userId]
+    }));
   };
 
   return (
@@ -296,22 +394,24 @@ export default function SubUserManagement() {
             <TableHeader>
               <TableRow className="bg-muted/50">
                 <TableHead className="text-right">کاربر</TableHead>
+                <TableHead className="text-right">نام کاربری</TableHead>
                 <TableHead className="text-right">تلفن</TableHead>
                 <TableHead className="text-right">اشتراک</TableHead>
                 <TableHead className="text-right">روزهای باقیمانده</TableHead>
+                <TableHead className="text-right">رمز عبور</TableHead>
                 <TableHead className="text-right">عملیات</TableHead>
               </TableRow>
             </TableHeader>
             <TableBody>
               {isLoading ? (
                 <TableRow>
-                  <TableCell colSpan={5} className="text-center py-8">
+                  <TableCell colSpan={7} className="text-center py-8">
                     در حال بارگذاری...
                   </TableCell>
                 </TableRow>
               ) : filteredSubUsers.length === 0 ? (
                 <TableRow>
-                  <TableCell colSpan={5} className="text-center py-8">
+                  <TableCell colSpan={7} className="text-center py-8">
                     {search ? "هیچ زیرمجموعه‌ای یافت نشد" : "هنوز زیرمجموعه‌ای ایجاد نشده است"}
                   </TableCell>
                 </TableRow>
@@ -320,8 +420,7 @@ export default function SubUserManagement() {
                   <TableRow key={user.id} data-testid={`row-user-${user.id}`}>
                     <TableCell>
                       <div className="flex flex-col">
-                        <span className="font-medium">{user.firstName} {user.lastName}</span>
-                        <span className="text-sm text-muted-foreground">@{user.username}</span>
+                        <span className="font-medium" data-testid={`text-fullname-${user.id}`}>{user.firstName} {user.lastName}</span>
                         {user.isWhatsappRegistered && (
                           <Badge variant="secondary" className="w-fit mt-1 text-xs">
                             واتس‌اپ
@@ -329,7 +428,10 @@ export default function SubUserManagement() {
                         )}
                       </div>
                     </TableCell>
-                    <TableCell className="text-sm">{user.phone}</TableCell>
+                    <TableCell>
+                      <span className="text-sm text-muted-foreground" data-testid={`text-username-${user.id}`}>@{user.username}</span>
+                    </TableCell>
+                    <TableCell className="text-sm" data-testid={`text-phone-${user.id}`}>{formatPhone(user.phone)}</TableCell>
                     <TableCell>
                       {user.subscription ? (
                         <div className="flex flex-col gap-1">
@@ -356,6 +458,27 @@ export default function SubUserManagement() {
                       )}
                     </TableCell>
                     <TableCell>
+                      <div className="flex items-center gap-2">
+                        {tempPasswords[user.id] ? (
+                          <>
+                            <span className="text-sm font-mono" data-testid={`text-password-${user.id}`}>
+                              {visiblePasswords[user.id] ? tempPasswords[user.id] : '••••••••'}
+                            </span>
+                            <Button
+                              size="sm"
+                              variant="ghost"
+                              onClick={() => togglePasswordVisibility(user.id)}
+                              data-testid={`button-toggle-password-${user.id}`}
+                            >
+                              {visiblePasswords[user.id] ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+                            </Button>
+                          </>
+                        ) : (
+                          <span className="text-muted-foreground text-sm">••••••••</span>
+                        )}
+                      </div>
+                    </TableCell>
+                    <TableCell>
                       <div className="flex gap-2">
                         <Button
                           size="sm"
@@ -364,6 +487,14 @@ export default function SubUserManagement() {
                           data-testid={`button-edit-${user.id}`}
                         >
                           <Edit className="w-4 h-4" />
+                        </Button>
+                        <Button
+                          size="sm"
+                          variant="outline"
+                          onClick={() => handleResetPassword(user)}
+                          data-testid={`button-reset-password-${user.id}`}
+                        >
+                          <RotateCcw className="w-4 h-4" />
                         </Button>
                         <Button
                           size="sm"
@@ -425,6 +556,41 @@ export default function SubUserManagement() {
                   data-testid="button-submit-edit"
                 >
                   {updateSubUserMutation.isPending ? "در حال بروزرسانی..." : "بروزرسانی"}
+                </Button>
+              </div>
+            )}
+          </DialogContent>
+        </Dialog>
+
+        {/* Reset Password Dialog */}
+        <Dialog open={isResetPasswordDialogOpen} onOpenChange={setIsResetPasswordDialogOpen}>
+          <DialogContent className="max-w-md">
+            <DialogHeader>
+              <DialogTitle>بازنشانی رمز عبور</DialogTitle>
+            </DialogHeader>
+            {resetPasswordUser && (
+              <div className="space-y-4">
+                <div className="text-sm text-muted-foreground">
+                  رمز عبور جدید برای <span className="font-medium">{resetPasswordUser.firstName} {resetPasswordUser.lastName}</span>
+                </div>
+                <div>
+                  <Label htmlFor="new-password">رمز عبور جدید</Label>
+                  <Input
+                    id="new-password"
+                    type="password"
+                    value={newPassword}
+                    onChange={(e) => setNewPassword(e.target.value)}
+                    placeholder="حداقل ۶ کاراکتر"
+                    data-testid="input-reset-password"
+                  />
+                </div>
+                <Button 
+                  onClick={handleSubmitResetPassword} 
+                  className="w-full"
+                  disabled={resetPasswordMutation.isPending || newPassword.length < 6}
+                  data-testid="button-submit-reset-password"
+                >
+                  {resetPasswordMutation.isPending ? "در حال بازنشانی..." : "بازنشانی رمز عبور"}
                 </Button>
               </div>
             )}
