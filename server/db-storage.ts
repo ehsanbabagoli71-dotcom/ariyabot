@@ -1,8 +1,8 @@
 import { Pool } from "pg";
 import { drizzle } from "drizzle-orm/node-postgres";
 import { eq, sql, desc, and, gte, or } from "drizzle-orm";
-import { users, tickets, subscriptions, products, whatsappSettings, sentMessages, receivedMessages, aiTokenSettings, userSubscriptions, categories } from "@shared/schema";
-import { type User, type InsertUser, type Ticket, type InsertTicket, type Subscription, type InsertSubscription, type Product, type InsertProduct, type WhatsappSettings, type InsertWhatsappSettings, type SentMessage, type InsertSentMessage, type ReceivedMessage, type InsertReceivedMessage, type AiTokenSettings, type InsertAiTokenSettings, type UserSubscription, type InsertUserSubscription, type Category, type InsertCategory } from "@shared/schema";
+import { users, tickets, subscriptions, products, whatsappSettings, sentMessages, receivedMessages, aiTokenSettings, userSubscriptions, categories, carts, cartItems } from "@shared/schema";
+import { type User, type InsertUser, type Ticket, type InsertTicket, type Subscription, type InsertSubscription, type Product, type InsertProduct, type WhatsappSettings, type InsertWhatsappSettings, type SentMessage, type InsertSentMessage, type ReceivedMessage, type InsertReceivedMessage, type AiTokenSettings, type InsertAiTokenSettings, type UserSubscription, type InsertUserSubscription, type Category, type InsertCategory, type Cart, type InsertCart, type CartItem, type InsertCartItem } from "@shared/schema";
 import { type IStorage } from "./storage";
 import bcrypt from "bcryptjs";
 
@@ -412,22 +412,19 @@ export class DbStorage implements IStorage {
       // Level 1 sees only their own products  
       return await db.select().from(products).where(eq(products.userId, currentUserId));
     } else if (userRole === 'user_level_2') {
-      // Level 2 sees products from level 1 users AND their own products
-      const level1Users = await db.select({ id: users.id }).from(users).where(eq(users.role, 'user_level_1'));
-      const level1UserIds = level1Users.map(user => user.id);
+      // Level 2 sees products from their parent user
+      const currentUser = await db.select({ parentUserId: users.parentUserId })
+        .from(users)
+        .where(eq(users.id, currentUserId))
+        .limit(1);
       
-      if (level1UserIds.length === 0) {
-        // If no level 1 users exist, only show own products
-        return await db.select().from(products).where(eq(products.userId, currentUserId));
+      if (currentUser.length === 0 || !currentUser[0].parentUserId) {
+        // If no parent user found, return empty array
+        return [];
       }
       
-      // Show own products OR products from level 1 users
-      return await db.select().from(products).where(
-        or(
-          eq(products.userId, currentUserId),
-          sql`${products.userId} = ANY(${level1UserIds})`
-        )
-      );
+      // Return products from parent user
+      return await db.select().from(products).where(eq(products.userId, currentUser[0].parentUserId));
     }
     
     return [];
@@ -782,5 +779,151 @@ export class DbStorage implements IStorage {
       // Level 2 users cannot see other users
       return [];
     }
+  }
+
+  // Cart
+  async getCart(userId: string): Promise<Cart | undefined> {
+    const result = await db.select().from(carts).where(eq(carts.userId, userId)).limit(1);
+    return result[0];
+  }
+
+  async getCartItems(userId: string): Promise<CartItem[]> {
+    const cart = await this.getCart(userId);
+    if (!cart) return [];
+    
+    return await db.select().from(cartItems).where(eq(cartItems.cartId, cart.id));
+  }
+
+  async getCartItemsWithProducts(userId: string): Promise<(CartItem & { productName: string; productDescription?: string; productImage?: string })[]> {
+    const cart = await this.getCart(userId);
+    if (!cart) return [];
+    
+    const result = await db
+      .select({
+        id: cartItems.id,
+        cartId: cartItems.cartId,
+        productId: cartItems.productId,
+        quantity: cartItems.quantity,
+        unitPrice: cartItems.unitPrice,
+        totalPrice: cartItems.totalPrice,
+        createdAt: cartItems.createdAt,
+        updatedAt: cartItems.updatedAt,
+        productName: products.name,
+        productDescription: products.description,
+        productImage: products.image,
+      })
+      .from(cartItems)
+      .innerJoin(products, eq(cartItems.productId, products.id))
+      .where(eq(cartItems.cartId, cart.id));
+
+    return result.map(row => ({
+      id: row.id,
+      cartId: row.cartId,
+      productId: row.productId,
+      quantity: row.quantity,
+      unitPrice: row.unitPrice,
+      totalPrice: row.totalPrice,
+      createdAt: row.createdAt,
+      updatedAt: row.updatedAt,
+      productName: row.productName,
+      productDescription: row.productDescription || undefined,
+      productImage: row.productImage || undefined,
+    }));
+  }
+
+  async addToCart(userId: string, productId: string, quantity: number): Promise<CartItem> {
+    const product = await db.select().from(products).where(eq(products.id, productId)).limit(1);
+    if (product.length === 0) {
+      throw new Error('محصول یافت نشد');
+    }
+
+    // Get or create cart for user
+    let cart = await this.getCart(userId);
+    if (!cart) {
+      const cartResult = await db.insert(carts).values({
+        userId,
+        totalAmount: "0",
+        itemCount: 0,
+      }).returning();
+      cart = cartResult[0];
+    }
+
+    // Check if item already exists in cart
+    const existingItem = await db.select().from(cartItems)
+      .where(and(eq(cartItems.cartId, cart.id), eq(cartItems.productId, productId)))
+      .limit(1);
+
+    const unitPrice = product[0].priceAfterDiscount || product[0].priceBeforeDiscount;
+    const totalPrice = (parseFloat(unitPrice) * quantity).toString();
+
+    if (existingItem.length > 0) {
+      // Update existing item
+      const newQuantity = existingItem[0].quantity + quantity;
+      const newTotalPrice = (parseFloat(unitPrice) * newQuantity).toString();
+      
+      const result = await db.update(cartItems)
+        .set({
+          quantity: newQuantity,
+          totalPrice: newTotalPrice,
+          updatedAt: new Date(),
+        })
+        .where(eq(cartItems.id, existingItem[0].id))
+        .returning();
+      
+      return result[0];
+    } else {
+      // Create new item
+      const result = await db.insert(cartItems).values({
+        cartId: cart.id,
+        productId,
+        quantity,
+        unitPrice: unitPrice,
+        totalPrice: totalPrice,
+      }).returning();
+      
+      return result[0];
+    }
+  }
+
+  async updateCartItemQuantity(itemId: string, quantity: number, userId: string): Promise<CartItem | undefined> {
+    const cart = await this.getCart(userId);
+    if (!cart) return undefined;
+
+    const item = await db.select().from(cartItems)
+      .where(and(eq(cartItems.id, itemId), eq(cartItems.cartId, cart.id)))
+      .limit(1);
+    
+    if (item.length === 0) return undefined;
+
+    const newTotalPrice = (parseFloat(item[0].unitPrice) * quantity).toString();
+    
+    const result = await db.update(cartItems)
+      .set({
+        quantity,
+        totalPrice: newTotalPrice,
+        updatedAt: new Date(),
+      })
+      .where(eq(cartItems.id, itemId))
+      .returning();
+    
+    return result[0];
+  }
+
+  async removeFromCart(itemId: string, userId: string): Promise<boolean> {
+    const cart = await this.getCart(userId);
+    if (!cart) return false;
+
+    const result = await db.delete(cartItems)
+      .where(and(eq(cartItems.id, itemId), eq(cartItems.cartId, cart.id)));
+    
+    return result.rowCount! > 0;
+  }
+
+  async clearCart(userId: string): Promise<boolean> {
+    const cart = await this.getCart(userId);
+    if (!cart) return false;
+
+    const result = await db.delete(cartItems).where(eq(cartItems.cartId, cart.id));
+    return result.rowCount! >= 0;
   }
 }

@@ -579,12 +579,15 @@ export class MemStorage implements IStorage {
       // Level 1 sees only their own products  
       return allProducts.filter(product => product.userId === currentUserId);
     } else if (userRole === 'user_level_2') {
-      // Level 2 sees products from level 1 users AND their own products
-      const level1Users = Array.from(this.users.values()).filter(user => user.role === 'user_level_1');
-      const level1UserIds = level1Users.map(user => user.id);
-      return allProducts.filter(product => 
-        product.userId === currentUserId || level1UserIds.includes(product.userId)
-      );
+      // Level 2 sees products from their parent user
+      const currentUser = this.users.get(currentUserId);
+      if (!currentUser || !currentUser.parentUserId) {
+        // If no parent user found, return empty array
+        return [];
+      }
+      
+      // Return products from parent user
+      return allProducts.filter(product => product.userId === currentUser.parentUserId);
     }
     
     return [];
