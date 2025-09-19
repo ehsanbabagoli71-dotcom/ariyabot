@@ -733,7 +733,9 @@ export async function registerRoutes(app: Express): Promise<Server> {
       }
 
       res.json({ 
-        userId: id, 
+        userId: id,
+        username: existingSubUser.username,
+        newPassword: newPassword,
         message: sentViaWhatsApp ? "رمز عبور جدید تولید و از طریق واتس‌اپ ارسال شد" : `رمز عبور جدید تولید شد - ${whatsappMessage}`,
         sentViaWhatsApp,
         whatsappStatus: whatsappMessage

@@ -7,7 +7,7 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@
 import { Badge } from "@/components/ui/badge";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
 import { Label } from "@/components/ui/label";
-import { Plus, Search, Edit, Trash2, Users, Eye, EyeOff, RotateCcw } from "lucide-react";
+import { Plus, Search, Edit, Trash2, Users, Eye, EyeOff, RotateCcw, Copy, CheckCircle } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { createAuthenticatedRequest } from "@/lib/auth";
 import { insertUserSchema, insertSubUserSchema } from "@shared/schema";
@@ -36,6 +36,9 @@ export default function SubUserManagement() {
   const [isCreateDialogOpen, setIsCreateDialogOpen] = useState(false);
   const [isResetPasswordDialogOpen, setIsResetPasswordDialogOpen] = useState(false);
   const [resetPasswordUser, setResetPasswordUser] = useState<UserWithSubscription | null>(null);
+  const [resetPasswordResult, setResetPasswordResult] = useState<{username: string, newPassword: string, message: string} | null>(null);
+  const [isCredentialsDialogOpen, setIsCredentialsDialogOpen] = useState(false);
+  const [copiedField, setCopiedField] = useState<string | null>(null);
   const [formData, setFormData] = useState({
     firstName: "",
     lastName: "",
@@ -160,9 +163,18 @@ export default function SubUserManagement() {
     onSuccess: (result) => {
       setIsResetPasswordDialogOpen(false);
       setResetPasswordUser(null);
+      
+      // Store result and show credentials dialog
+      setResetPasswordResult({
+        username: result.username,
+        newPassword: result.newPassword,
+        message: result.message
+      });
+      setIsCredentialsDialogOpen(true);
+      
       toast({
         title: "موفقیت",
-        description: "رمز عبور جدید تولید و برای کاربر ارسال شد",
+        description: "رمز عبور جدید تولید شد. اطلاعات ورود در پنجره باز شده نمایش داده شد.",
       });
     },
     onError: (error: Error) => {
@@ -259,6 +271,30 @@ export default function SubUserManagement() {
   const handleSubmitResetPassword = () => {
     if (!resetPasswordUser) return;
     resetPasswordMutation.mutate(resetPasswordUser.id);
+  };
+
+  const copyToClipboard = async (text: string, field: string) => {
+    try {
+      await navigator.clipboard.writeText(text);
+      setCopiedField(field);
+      toast({
+        title: "کپی شد",
+        description: `${field} با موفقیت کپی شد`,
+      });
+      setTimeout(() => setCopiedField(null), 2000);
+    } catch (error) {
+      toast({
+        title: "خطا",
+        description: "خطا در کپی کردن",
+        variant: "destructive",
+      });
+    }
+  };
+
+  const handleCloseCredentialsDialog = () => {
+    setIsCredentialsDialogOpen(false);
+    setResetPasswordResult(null);
+    setCopiedField(null);
   };
 
 
@@ -393,7 +429,7 @@ export default function SubUserManagement() {
                       </div>
                     </TableCell>
                     <TableCell>
-                      <span className="text-sm text-muted-foreground" data-testid={`text-username-${user.id}`}>@{user.username}</span>
+                      <span className="text-sm text-muted-foreground" data-testid={`text-username-${user.id}`}>{user.username}</span>
                     </TableCell>
                     <TableCell className="text-sm" data-testid={`text-phone-${user.id}`}>{formatPhone(user.phone)}</TableCell>
                     <TableCell>
@@ -537,6 +573,84 @@ export default function SubUserManagement() {
                     انصراف
                   </Button>
                 </div>
+              </div>
+            )}
+          </DialogContent>
+        </Dialog>
+
+        {/* Credentials Display Dialog */}
+        <Dialog open={isCredentialsDialogOpen} onOpenChange={handleCloseCredentialsDialog}>
+          <DialogContent className="max-w-md">
+            <DialogHeader>
+              <DialogTitle>🔐 اطلاعات ورود جدید</DialogTitle>
+            </DialogHeader>
+            {resetPasswordResult && (
+              <div className="space-y-4">
+                <div className="text-sm text-amber-600 bg-amber-50 dark:bg-amber-900/20 p-3 rounded border border-amber-200 dark:border-amber-800">
+                  ⚠️ این اطلاعات فقط یک بار نمایش داده می‌شود. لطفاً آن‌ها را کپی کنید.
+                </div>
+                
+                <div className="space-y-3">
+                  <div>
+                    <Label>نام کاربری</Label>
+                    <div className="flex items-center gap-2 mt-1">
+                      <Input
+                        value={resetPasswordResult.username}
+                        readOnly
+                        className="flex-1"
+                        data-testid="display-username"
+                      />
+                      <Button
+                        size="sm"
+                        variant="outline"
+                        onClick={() => copyToClipboard(resetPasswordResult.username, "نام کاربری")}
+                        data-testid="button-copy-username"
+                      >
+                        {copiedField === "نام کاربری" ? (
+                          <CheckCircle className="w-4 h-4 text-green-600" />
+                        ) : (
+                          <Copy className="w-4 h-4" />
+                        )}
+                      </Button>
+                    </div>
+                  </div>
+
+                  <div>
+                    <Label>رمز عبور جدید</Label>
+                    <div className="flex items-center gap-2 mt-1">
+                      <Input
+                        value={resetPasswordResult.newPassword}
+                        readOnly
+                        className="flex-1 font-mono"
+                        data-testid="display-password"
+                      />
+                      <Button
+                        size="sm"
+                        variant="outline"
+                        onClick={() => copyToClipboard(resetPasswordResult.newPassword, "رمز عبور")}
+                        data-testid="button-copy-password"
+                      >
+                        {copiedField === "رمز عبور" ? (
+                          <CheckCircle className="w-4 h-4 text-green-600" />
+                        ) : (
+                          <Copy className="w-4 h-4" />
+                        )}
+                      </Button>
+                    </div>
+                  </div>
+                </div>
+
+                <div className="text-sm text-muted-foreground bg-muted p-3 rounded">
+                  {resetPasswordResult.message}
+                </div>
+
+                <Button 
+                  onClick={handleCloseCredentialsDialog} 
+                  className="w-full"
+                  data-testid="button-close-credentials"
+                >
+                  بستن
+                </Button>
               </div>
             )}
           </DialogContent>
