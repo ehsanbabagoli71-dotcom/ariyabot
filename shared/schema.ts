@@ -138,11 +138,12 @@ export const insertUserSchema = createInsertSchema(users).omit({
   createdAt: true,
 });
 
-// Schema for level 2 users where email is optional
+// Schema for level 2 users where email and username are optional (username auto-generated from phone)
 export const insertSubUserSchema = createInsertSchema(users).omit({
   id: true,
   createdAt: true,
   email: true, // Remove email from required fields
+  username: true, // Remove username from required fields - auto-generated from phone
 }).extend({
   email: z.string().email("ایمیل معتبر وارد کنید").optional(), // Make email optional
 });
