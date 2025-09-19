@@ -1069,6 +1069,19 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
+  // Shop products route for level 2 users to view parent products
+  app.get("/api/products/shop", authenticateToken, async (req: AuthRequest, res) => {
+    try {
+      if (req.user?.role !== "user_level_2") {
+        return res.status(403).json({ message: "دسترسی محدود - این عملیات مخصوص کاربران سطح ۲ است" });
+      }
+      const products = await storage.getAllProducts(req.user!.id, req.user!.role);
+      res.json(products);
+    } catch (error) {
+      res.status(500).json({ message: "خطا در دریافت محصولات فروشگاه" });
+    }
+  });
+
   app.post("/api/products", authenticateToken, upload.single("productImage"), async (req: AuthRequest, res) => {
     try {
       let imageData = null;
