@@ -1,8 +1,8 @@
 import { Pool } from "pg";
 import { drizzle } from "drizzle-orm/node-postgres";
 import { eq, sql, desc, and, gte, or } from "drizzle-orm";
-import { users, tickets, subscriptions, products, whatsappSettings, sentMessages, receivedMessages, aiTokenSettings, userSubscriptions, categories, carts, cartItems } from "@shared/schema";
-import { type User, type InsertUser, type Ticket, type InsertTicket, type Subscription, type InsertSubscription, type Product, type InsertProduct, type WhatsappSettings, type InsertWhatsappSettings, type SentMessage, type InsertSentMessage, type ReceivedMessage, type InsertReceivedMessage, type AiTokenSettings, type InsertAiTokenSettings, type UserSubscription, type InsertUserSubscription, type Category, type InsertCategory, type Cart, type InsertCart, type CartItem, type InsertCartItem } from "@shared/schema";
+import { users, tickets, subscriptions, products, whatsappSettings, sentMessages, receivedMessages, aiTokenSettings, userSubscriptions, categories, carts, cartItems, addresses, orders, orderItems, transactions } from "@shared/schema";
+import { type User, type InsertUser, type Ticket, type InsertTicket, type Subscription, type InsertSubscription, type Product, type InsertProduct, type WhatsappSettings, type InsertWhatsappSettings, type SentMessage, type InsertSentMessage, type ReceivedMessage, type InsertReceivedMessage, type AiTokenSettings, type InsertAiTokenSettings, type UserSubscription, type InsertUserSubscription, type Category, type InsertCategory, type Cart, type InsertCart, type CartItem, type InsertCartItem, type Address, type InsertAddress, type Order, type InsertOrder, type OrderItem, type InsertOrderItem, type Transaction, type InsertTransaction } from "@shared/schema";
 import { type IStorage } from "./storage";
 import bcrypt from "bcryptjs";
 
@@ -932,4 +932,177 @@ export class DbStorage implements IStorage {
     const result = await db.delete(cartItems).where(eq(cartItems.cartId, cart.id));
     return result.rowCount! >= 0;
   }
+
+  // Addresses
+  async getAddress(id: string): Promise<Address | undefined> {
+    const result = await db.select().from(addresses).where(eq(addresses.id, id)).limit(1);
+    return result[0];
+  }
+
+  async getAddressesByUser(userId: string): Promise<Address[]> {
+    return await db.select().from(addresses).where(eq(addresses.userId, userId));
+  }
+
+  async createAddress(insertAddress: InsertAddress): Promise<Address> {
+    const result = await db.insert(addresses).values(insertAddress).returning();
+    return result[0];
+  }
+
+  async updateAddress(id: string, updates: Partial<Address>, userId: string): Promise<Address | undefined> {
+    const result = await db.update(addresses)
+      .set({ ...updates, updatedAt: new Date() })
+      .where(and(eq(addresses.id, id), eq(addresses.userId, userId)))
+      .returning();
+    return result[0];
+  }
+
+  async deleteAddress(id: string, userId: string): Promise<boolean> {
+    const result = await db.delete(addresses)
+      .where(and(eq(addresses.id, id), eq(addresses.userId, userId)));
+    return result.rowCount! > 0;
+  }
+
+  async setDefaultAddress(addressId: string, userId: string): Promise<boolean> {
+    // First, remove default from all user addresses
+    await db.update(addresses)
+      .set({ isDefault: false })
+      .where(eq(addresses.userId, userId));
+    
+    // Then set the specified address as default
+    const result = await db.update(addresses)
+      .set({ isDefault: true, updatedAt: new Date() })
+      .where(and(eq(addresses.id, addressId), eq(addresses.userId, userId)));
+    
+    return result.rowCount! > 0;
+  }
+
+  // Orders
+  async getOrder(id: string): Promise<Order | undefined> {
+    const result = await db.select().from(orders).where(eq(orders.id, id)).limit(1);
+    return result[0];
+  }
+
+  async getOrdersByUser(userId: string): Promise<Order[]> {
+    return await db.select().from(orders).where(eq(orders.userId, userId)).orderBy(desc(orders.createdAt));
+  }
+
+  async getOrdersBySeller(sellerId: string): Promise<Order[]> {
+    return await db.select().from(orders).where(eq(orders.sellerId, sellerId)).orderBy(desc(orders.createdAt));
+  }
+
+  async createOrder(insertOrder: InsertOrder): Promise<Order> {
+    const orderNumber = this.generateOrderNumber();
+    const orderData = {
+      ...insertOrder,
+      orderNumber,
+    };
+    const result = await db.insert(orders).values(orderData).returning();
+    return result[0];
+  }
+
+  async updateOrderStatus(id: string, status: string, sellerId: string): Promise<Order | undefined> {
+    const result = await db.update(orders)
+      .set({ 
+        status, 
+        updatedAt: new Date(),
+        statusHistory: sql`array_append(status_history, ${status}::text)`
+      })
+      .where(and(eq(orders.id, id), eq(orders.sellerId, sellerId)))
+      .returning();
+    return result[0];
+  }
+
+  generateOrderNumber(): string {
+    const timestamp = Date.now();
+    const random = Math.floor(Math.random() * 1000).toString().padStart(3, '0');
+    return `ORD-${timestamp}-${random}`;
+  }
+
+  // Order Items
+  async getOrderItems(orderId: string): Promise<OrderItem[]> {
+    return await db.select().from(orderItems).where(eq(orderItems.orderId, orderId));
+  }
+
+  async getOrderItemsWithProducts(orderId: string): Promise<(OrderItem & { productName: string; productDescription?: string; productImage?: string })[]> {
+    const result = await db.select({
+      id: orderItems.id,
+      orderId: orderItems.orderId,
+      productId: orderItems.productId,
+      quantity: orderItems.quantity,
+      unitPrice: orderItems.unitPrice,
+      totalPrice: orderItems.totalPrice,
+      createdAt: orderItems.createdAt,
+      productName: products.name,
+      productDescription: products.description,
+      productImage: products.image,
+    })
+    .from(orderItems)
+    .innerJoin(products, eq(orderItems.productId, products.id))
+    .where(eq(orderItems.orderId, orderId));
+    
+    return result as (OrderItem & { productName: string; productDescription?: string; productImage?: string })[];
+  }
+
+  async createOrderItem(insertOrderItem: InsertOrderItem): Promise<OrderItem> {
+    const result = await db.insert(orderItems).values(insertOrderItem).returning();
+    return result[0];
+  }
+
+  // Transactions
+  async getTransaction(id: string): Promise<Transaction | undefined> {
+    const result = await db.select().from(transactions).where(eq(transactions.id, id)).limit(1);
+    return result[0];
+  }
+
+  async getTransactionsByUser(userId: string): Promise<Transaction[]> {
+    return await db.select().from(transactions)
+      .where(eq(transactions.userId, userId))
+      .orderBy(desc(transactions.createdAt));
+  }
+
+  async getTransactionsByUserAndType(userId: string, type: string): Promise<Transaction[]> {
+    return await db.select().from(transactions)
+      .where(and(eq(transactions.userId, userId), eq(transactions.type, type)))
+      .orderBy(desc(transactions.createdAt));
+  }
+
+  async createTransaction(insertTransaction: InsertTransaction): Promise<Transaction> {
+    const result = await db.insert(transactions).values(insertTransaction).returning();
+    return result[0];
+  }
+
+  async updateTransactionStatus(id: string, status: string): Promise<Transaction | undefined> {
+    const result = await db.update(transactions)
+      .set({ status })
+      .where(eq(transactions.id, id))
+      .returning();
+    return result[0];
+  }
+
+  async getUserBalance(userId: string): Promise<number> {
+    const result = await db.select({
+      balance: sql<number>`COALESCE(SUM(CASE 
+        WHEN type IN ('deposit', 'commission') THEN amount::numeric
+        WHEN type IN ('withdraw', 'order_payment') THEN -amount::numeric
+        ELSE 0
+      END), 0)::numeric`
+    })
+    .from(transactions)
+    .where(and(eq(transactions.userId, userId), eq(transactions.status, 'completed')));
+    
+    return Number(result[0].balance);
+  }
+
+  async getSuccessfulTransactionsBySellers(sellerIds: string[]): Promise<Transaction[]> {
+    if (sellerIds.length === 0) return [];
+    
+    return await db.select().from(transactions)
+      .where(and(
+        sql`user_id = ANY(${sellerIds})`,
+        eq(transactions.status, 'completed'),
+        eq(transactions.type, 'commission')
+      ))
+      .orderBy(desc(transactions.createdAt));
+  }
+
 }
