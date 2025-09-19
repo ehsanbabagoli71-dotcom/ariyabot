@@ -206,9 +206,11 @@ export default function SubUserManagement() {
   });
 
   const filteredSubUsers = sortedSubUsers.filter(user => {
-    const matchesSearch = user.firstName.toLowerCase().includes(search.toLowerCase()) ||
-                         user.lastName.toLowerCase().includes(search.toLowerCase()) ||
-                         (user.username && user.username.toLowerCase().includes(search.toLowerCase()));
+    const searchLower = search.toLowerCase();
+    const matchesSearch = user.firstName.toLowerCase().includes(searchLower) ||
+                         user.lastName.toLowerCase().includes(searchLower) ||
+                         (user.username && user.username.toLowerCase().includes(searchLower)) ||
+                         (user.phone && user.phone.includes(search));
     return matchesSearch;
   });
 
@@ -352,7 +354,7 @@ export default function SubUserManagement() {
         <div className="relative">
           <Search className="absolute right-3 top-1/2 transform -translate-y-1/2 text-muted-foreground w-4 h-4" />
           <Input
-            placeholder="جستجو در زیرمجموعه‌ها..."
+            placeholder="جستجو بر اساس نام، نام خانوادگی، نام کاربری یا شماره تلفن..."
             value={search}
             onChange={(e) => setSearch(e.target.value)}
             className="pr-10"
