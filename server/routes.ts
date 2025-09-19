@@ -6,7 +6,7 @@ import jwt from "jsonwebtoken";
 import multer from "multer";
 import path from "path";
 import { fileURLToPath } from "url";
-import { insertUserSchema, insertSubUserSchema, insertTicketSchema, insertSubscriptionSchema, insertProductSchema, insertWhatsappSettingsSchema, insertSentMessageSchema, insertReceivedMessageSchema, insertAiTokenSettingsSchema, insertUserSubscriptionSchema, insertCategorySchema, updateCategoryOrderSchema, ticketReplySchema, type User } from "@shared/schema";
+import { insertUserSchema, insertSubUserSchema, insertTicketSchema, insertSubscriptionSchema, insertProductSchema, insertWhatsappSettingsSchema, insertSentMessageSchema, insertReceivedMessageSchema, insertAiTokenSettingsSchema, insertUserSubscriptionSchema, insertCategorySchema, insertCartItemSchema, updateCategoryOrderSchema, ticketReplySchema, type User } from "@shared/schema";
 import { z } from "zod";
 
 const __filename = fileURLToPath(import.meta.url);
@@ -1616,6 +1616,101 @@ export async function registerRoutes(app: Express): Promise<Server> {
       res.json({ message: "پیام خوش آمدگویی با موفقیت ذخیره شد" });
     } catch (error) {
       res.status(500).json({ message: "خطا در ذخیره پیام خوش آمدگویی" });
+    }
+  });
+
+  // Cart routes - Only for user_level_2
+  const requireLevel2 = (req: AuthRequest, res: Response, next: NextFunction) => {
+    if (req.user?.role !== "user_level_2") {
+      return res.status(403).json({ message: "دسترسی محدود - این عملیات مخصوص کاربران سطح ۲ است" });
+    }
+    next();
+  };
+
+  // Cart validation schemas
+  const addToCartSchema = z.object({
+    productId: z.string().uuid("شناسه محصول باید UUID معتبر باشد"),
+    quantity: z.number().int().min(1, "تعداد باید حداقل ۱ باشد"),
+  });
+
+  const updateQuantitySchema = z.object({
+    quantity: z.number().int().min(1, "تعداد باید حداقل ۱ باشد"),
+  });
+
+  // Get cart items for user
+  app.get("/api/cart", authenticateToken, requireLevel2, async (req: AuthRequest, res) => {
+    try {
+      const cartItems = await storage.getCartItemsWithProducts(req.user!.id);
+      res.json(cartItems);
+    } catch (error) {
+      res.status(500).json({ message: "خطا در دریافت سبد خرید" });
+    }
+  });
+
+  // Add item to cart
+  app.post("/api/cart/add", authenticateToken, requireLevel2, async (req: AuthRequest, res) => {
+    try {
+      const validatedData = addToCartSchema.parse(req.body);
+      const { productId, quantity } = validatedData;
+
+      const cartItem = await storage.addToCart(req.user!.id, productId, quantity);
+      res.json(cartItem);
+    } catch (error: any) {
+      if (error.name === "ZodError") {
+        return res.status(400).json({ message: error.errors[0]?.message || "داده‌های ورودی نامعتبر" });
+      }
+      res.status(500).json({ message: error.message || "خطا در اضافه کردن به سبد خرید" });
+    }
+  });
+
+  // Update cart item quantity
+  app.patch("/api/cart/items/:itemId", authenticateToken, requireLevel2, async (req: AuthRequest, res) => {
+    try {
+      const validatedData = updateQuantitySchema.parse(req.body);
+      const { quantity } = validatedData;
+
+      const updatedItem = await storage.updateCartItemQuantity(req.params.itemId, quantity, req.user!.id);
+      
+      if (!updatedItem) {
+        return res.status(404).json({ message: "آیتم سبد خرید یافت نشد" });
+      }
+
+      res.json(updatedItem);
+    } catch (error: any) {
+      if (error.name === "ZodError") {
+        return res.status(400).json({ message: error.errors[0]?.message || "داده‌های ورودی نامعتبر" });
+      }
+      res.status(500).json({ message: "خطا در بروزرسانی تعداد" });
+    }
+  });
+
+  // Remove item from cart
+  app.delete("/api/cart/items/:itemId", authenticateToken, requireLevel2, async (req: AuthRequest, res) => {
+    try {
+      const success = await storage.removeFromCart(req.params.itemId, req.user!.id);
+      
+      if (!success) {
+        return res.status(404).json({ message: "آیتم سبد خرید یافت نشد" });
+      }
+
+      res.json({ message: "آیتم با موفقیت از سبد حذف شد" });
+    } catch (error) {
+      res.status(500).json({ message: "خطا در حذف آیتم از سبد" });
+    }
+  });
+
+  // Clear entire cart
+  app.delete("/api/cart/clear", authenticateToken, requireLevel2, async (req: AuthRequest, res) => {
+    try {
+      const success = await storage.clearCart(req.user!.id);
+      
+      if (!success) {
+        return res.status(404).json({ message: "سبد خرید یافت نشد" });
+      }
+
+      res.json({ message: "سبد خرید با موفقیت پاک شد" });
+    } catch (error) {
+      res.status(500).json({ message: "خطا در پاک کردن سبد خرید" });
     }
   });
 

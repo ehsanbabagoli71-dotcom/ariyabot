@@ -1,4 +1,4 @@
-import { type User, type InsertUser, type Ticket, type InsertTicket, type Subscription, type InsertSubscription, type Product, type InsertProduct, type WhatsappSettings, type InsertWhatsappSettings, type SentMessage, type InsertSentMessage, type ReceivedMessage, type InsertReceivedMessage, type AiTokenSettings, type InsertAiTokenSettings, type UserSubscription, type InsertUserSubscription, type Category, type InsertCategory } from "@shared/schema";
+import { type User, type InsertUser, type Ticket, type InsertTicket, type Subscription, type InsertSubscription, type Product, type InsertProduct, type WhatsappSettings, type InsertWhatsappSettings, type SentMessage, type InsertSentMessage, type ReceivedMessage, type InsertReceivedMessage, type AiTokenSettings, type InsertAiTokenSettings, type UserSubscription, type InsertUserSubscription, type Category, type InsertCategory, type Cart, type InsertCart, type CartItem, type InsertCartItem } from "@shared/schema";
 import { randomUUID } from "crypto";
 import bcrypt from "bcryptjs";
 
@@ -80,6 +80,15 @@ export interface IStorage {
   updateCategory(id: string, category: Partial<Category>, currentUserId: string, userRole: string): Promise<Category | undefined>;
   deleteCategory(id: string, currentUserId: string, userRole: string): Promise<boolean>;
   reorderCategories(updates: { id: string; order: number; parentId?: string | null }[]): Promise<boolean>;
+  
+  // Cart
+  getCart(userId: string): Promise<Cart | undefined>;
+  getCartItems(userId: string): Promise<CartItem[]>;
+  getCartItemsWithProducts(userId: string): Promise<(CartItem & { productName: string; productDescription?: string; productImage?: string })[]>;
+  addToCart(userId: string, productId: string, quantity: number): Promise<CartItem>;
+  updateCartItemQuantity(itemId: string, quantity: number, userId: string): Promise<CartItem | undefined>;
+  removeFromCart(itemId: string, userId: string): Promise<boolean>;
+  clearCart(userId: string): Promise<boolean>;
 }
 
 export class MemStorage implements IStorage {
@@ -93,6 +102,8 @@ export class MemStorage implements IStorage {
   private aiTokenSettings: AiTokenSettings | undefined;
   private userSubscriptions: Map<string, UserSubscription>;
   private categories: Map<string, Category>;
+  private carts: Map<string, Cart>;
+  private cartItems: Map<string, CartItem>;
 
   constructor() {
     this.users = new Map();
@@ -105,6 +116,8 @@ export class MemStorage implements IStorage {
     this.aiTokenSettings = undefined;
     this.userSubscriptions = new Map();
     this.categories = new Map();
+    this.carts = new Map();
+    this.cartItems = new Map();
     
     // Create default admin user
     this.initializeAdminUser();
@@ -752,6 +765,163 @@ export class MemStorage implements IStorage {
     } catch (error) {
       return false;
     }
+  }
+
+  // Cart implementation
+  async getCart(userId: string): Promise<Cart | undefined> {
+    return Array.from(this.carts.values()).find(cart => cart.userId === userId);
+  }
+
+  async getCartItems(userId: string): Promise<CartItem[]> {
+    const cart = await this.getCart(userId);
+    if (!cart) return [];
+    
+    return Array.from(this.cartItems.values()).filter(item => item.cartId === cart.id);
+  }
+
+  async getCartItemsWithProducts(userId: string): Promise<(CartItem & { productName: string; productDescription?: string; productImage?: string })[]> {
+    const cartItems = await this.getCartItems(userId);
+    
+    return cartItems.map(item => {
+      const product = this.products.get(item.productId);
+      return {
+        ...item,
+        productName: product?.name || 'محصول حذف شده',
+        productDescription: product?.description || undefined,
+        productImage: product?.image || undefined,
+      };
+    });
+  }
+
+  async addToCart(userId: string, productId: string, quantity: number): Promise<CartItem> {
+    const product = this.products.get(productId);
+    if (!product) {
+      throw new Error('محصول یافت نشد');
+    }
+
+    // Get or create cart for user
+    let cart = await this.getCart(userId);
+    if (!cart) {
+      const cartId = randomUUID();
+      cart = {
+        id: cartId,
+        userId,
+        totalAmount: "0",
+        itemCount: 0,
+        createdAt: new Date(),
+        updatedAt: new Date(),
+      };
+      this.carts.set(cartId, cart);
+    }
+
+    // Check if item already exists in cart
+    const existingItem = Array.from(this.cartItems.values()).find(
+      item => item.cartId === cart!.id && item.productId === productId
+    );
+
+    if (existingItem) {
+      // Update quantity
+      const newQuantity = existingItem.quantity + quantity;
+      return await this.updateCartItemQuantity(existingItem.id, newQuantity, userId) || existingItem;
+    } else {
+      // Add new item
+      const unitPrice = product.priceAfterDiscount || product.priceBeforeDiscount;
+      const totalPrice = parseFloat(unitPrice) * quantity;
+      
+      const cartItemId = randomUUID();
+      const cartItem: CartItem = {
+        id: cartItemId,
+        cartId: cart.id,
+        productId,
+        quantity,
+        unitPrice: unitPrice,
+        totalPrice: totalPrice.toString(),
+        createdAt: new Date(),
+        updatedAt: new Date(),
+      };
+
+      this.cartItems.set(cartItemId, cartItem);
+      await this.updateCartTotals(cart.id);
+      return cartItem;
+    }
+  }
+
+  async updateCartItemQuantity(itemId: string, quantity: number, userId: string): Promise<CartItem | undefined> {
+    const cartItem = this.cartItems.get(itemId);
+    if (!cartItem) return undefined;
+
+    // Verify item belongs to user's cart
+    const cart = this.carts.get(cartItem.cartId);
+    if (!cart || cart.userId !== userId) return undefined;
+
+    if (quantity <= 0) {
+      // Remove item if quantity is 0 or less
+      await this.removeFromCart(itemId, userId);
+      return undefined;
+    }
+
+    const product = this.products.get(cartItem.productId);
+    if (!product) return undefined;
+
+    const unitPrice = parseFloat(cartItem.unitPrice);
+    const totalPrice = unitPrice * quantity;
+
+    const updatedItem: CartItem = {
+      ...cartItem,
+      quantity,
+      totalPrice: totalPrice.toString(),
+      updatedAt: new Date(),
+    };
+
+    this.cartItems.set(itemId, updatedItem);
+    await this.updateCartTotals(cart.id);
+    return updatedItem;
+  }
+
+  async removeFromCart(itemId: string, userId: string): Promise<boolean> {
+    const cartItem = this.cartItems.get(itemId);
+    if (!cartItem) return false;
+
+    // Verify item belongs to user's cart
+    const cart = this.carts.get(cartItem.cartId);
+    if (!cart || cart.userId !== userId) return false;
+
+    const removed = this.cartItems.delete(itemId);
+    if (removed) {
+      await this.updateCartTotals(cart.id);
+    }
+    return removed;
+  }
+
+  async clearCart(userId: string): Promise<boolean> {
+    const cart = await this.getCart(userId);
+    if (!cart) return false;
+
+    // Remove all cart items
+    const cartItems = Array.from(this.cartItems.values()).filter(item => item.cartId === cart.id);
+    cartItems.forEach(item => this.cartItems.delete(item.id));
+
+    // Update cart totals
+    await this.updateCartTotals(cart.id);
+    return true;
+  }
+
+  private async updateCartTotals(cartId: string): Promise<void> {
+    const cart = this.carts.get(cartId);
+    if (!cart) return;
+
+    const cartItems = Array.from(this.cartItems.values()).filter(item => item.cartId === cartId);
+    const totalAmount = cartItems.reduce((sum, item) => sum + parseFloat(item.totalPrice), 0);
+    const itemCount = cartItems.reduce((sum, item) => sum + item.quantity, 0);
+
+    const updatedCart: Cart = {
+      ...cart,
+      totalAmount: totalAmount.toString(),
+      itemCount,
+      updatedAt: new Date(),
+    };
+
+    this.carts.set(cartId, updatedCart);
   }
 }
 

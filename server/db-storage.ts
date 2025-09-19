@@ -547,8 +547,8 @@ export class DbStorage implements IStorage {
     return allCategories.filter(cat => cat.parentId === null);
   }
 
-  async createCategory(insertCategory: InsertCategory): Promise<Category> {
-    const result = await db.insert(categories).values(insertCategory).returning();
+  async createCategory(insertCategory: InsertCategory, createdBy: string): Promise<Category> {
+    const result = await db.insert(categories).values({ ...insertCategory, createdBy }).returning();
     return result[0];
   }
 
