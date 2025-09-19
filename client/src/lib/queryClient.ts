@@ -13,9 +13,22 @@ export async function apiRequest(
   url: string,
   data?: unknown | undefined,
 ): Promise<Response> {
+  const authHeaders = getAuthHeaders();
+  const headers: Record<string, string> = {};
+  
+  // Add content type for requests with data
+  if (data) {
+    headers["Content-Type"] = "application/json";
+  }
+  
+  // Add authorization header if available
+  if (authHeaders.Authorization) {
+    headers.Authorization = authHeaders.Authorization;
+  }
+
   const res = await fetch(url, {
     method,
-    headers: data ? { "Content-Type": "application/json" } : {},
+    headers,
     body: data ? JSON.stringify(data) : undefined,
     credentials: "include",
   });
