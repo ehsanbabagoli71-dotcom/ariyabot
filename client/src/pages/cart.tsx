@@ -127,6 +127,41 @@ export default function Cart() {
     }
   };
 
+  // Proceed to checkout mutation
+  const proceedToCheckoutMutation = useMutation({
+    mutationFn: async () => {
+      const response = await apiRequest("POST", "/api/orders");
+      if (!response.ok) {
+        const errorData = await response.json();
+        throw new Error(errorData.message || "خطا در ثبت سفارش");
+      }
+      return response.json();
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["/api/cart"] });
+      queryClient.invalidateQueries({ queryKey: ["/api/orders"] });
+      toast({
+        title: "موفقیت",
+        description: "سفارش شما با موفقیت ثبت شد و در لیست سفارشات شما قرار گرفت",
+      });
+      // Redirect to orders page
+      window.location.href = '/user/orders';
+    },
+    onError: (error: Error) => {
+      toast({
+        title: "خطا",
+        description: error.message,
+        variant: "destructive",
+      });
+    },
+  });
+
+  const handleProceedToCheckout = () => {
+    if (cartItems.length > 0) {
+      proceedToCheckoutMutation.mutate();
+    }
+  };
+
   if (cartLoading) {
     return (
       <DashboardLayout title="سبد خرید">
@@ -305,9 +340,11 @@ export default function Cart() {
                   <Button 
                     className="w-full" 
                     size="lg"
+                    onClick={handleProceedToCheckout}
+                    disabled={proceedToCheckoutMutation.isPending}
                     data-testid="button-proceed-checkout"
                   >
-                    ادامه خرید
+                    {proceedToCheckoutMutation.isPending ? "در حال پردازش..." : "ادامه خرید"}
                   </Button>
                   
                   <p className="text-xs text-muted-foreground text-center">
